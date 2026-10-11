@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 // dist/move-to-spacesheep-<version>.zip: exactly the files Chrome loads, for the
-// Chrome Web Store upload. Nothing from test/, scripts/ or node_modules.
+// Chrome Web Store upload. Nothing from test/, scripts/ or node_modules. Also
+// dist/move-to-spacesheep.zip, the same bytes under the name every release carries,
+// so .../releases/latest/download/move-to-spacesheep.zip (spacesheep.dev/extension
+// links it) is always the newest.
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -16,4 +19,5 @@ const files = [
 mkdirSync(`${root}/dist`, { recursive: true });
 rmSync(`${root}/${out}`, { force: true });
 execFileSync("zip", ["-X", "-q", out, ...files], { cwd: root, stdio: "inherit" });
-console.log(out);
+copyFileSync(`${root}/${out}`, `${root}/dist/move-to-spacesheep.zip`);
+console.log(`${out}\ndist/move-to-spacesheep.zip`);

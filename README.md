@@ -11,13 +11,13 @@ instead of making a second one.
 
 ## Install
 
-From the Chrome Web Store: *(listing pending)*.
+From the Chrome Web Store: *(listing pending)*. More at
+[spacesheep.dev/extension](https://spacesheep.dev/extension).
 
 Until then, from a release:
 
-1. Download `move-to-spacesheep-<version>.zip` from
-   [Releases](https://github.com/spacesheep-dev/spacesheep-extension/releases/latest)
-   and unzip it (or clone this repository).
+1. Download [move-to-spacesheep.zip](https://github.com/spacesheep-dev/spacesheep-extension/releases/latest/download/move-to-spacesheep.zip)
+   (the latest release) and unzip it, or clone this repository.
 2. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
    and pick the unzipped folder.
 3. To move files from your computer (`file://` pages), open the extension's
