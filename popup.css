@@ -131,6 +131,9 @@ button, a.primary { font: inherit; }
 .problem .detail { font-size: 12px; margin: -6px 0 12px; overflow-wrap: anywhere; }
 .problem.error .title { color: var(--danger); }
 
+.ways { padding: 0 16px 10px; margin-top: -6px; }
+.ways .link { padding: 6px 0; font-size: 13px; }
+
 .foot {
   display: flex;
   justify-content: space-between;

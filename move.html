@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Move files to spacesheep</title>
+  <link rel="icon" href="icons/icon-32.png">
+  <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="move.css">
+</head>
+<body class="mover">
+  <header class="top">
+    <img src="icons/icon-32.png" width="16" height="14" alt="" class="logo">
+    <span class="brand">spacesheep</span>
+  </header>
+
+  <main class="mv">
+    <h1>Move files to spacesheep</h1>
+    <p class="lead muted">Pictures, PDFs, videos, documents, a whole folder: anything. They become one page with its own link, private until you share it.</p>
+
+    <div class="drop" id="drop">
+      <span class="drop-big">Drop files or a folder here</span>
+      <span class="muted">A folder with an <code>index.html</code> goes up as a website.</span>
+      <span class="drop-btns">
+        <button type="button" class="secondary" id="btn-files">Choose files</button>
+        <button type="button" class="secondary" id="btn-folder">Choose a folder</button>
+      </span>
+    </div>
+    <input type="file" id="pick-files" multiple hidden>
+    <input type="file" id="pick-folder" webkitdirectory hidden>
+
+    <section class="picked" id="picked" hidden aria-live="polite">
+      <div class="picked-head">
+        <b id="picked-count"></b>
+        <button type="button" class="link" id="clear">Clear</button>
+      </div>
+      <ul class="picked-list" id="picked-list"></ul>
+      <label class="field">Title
+        <input type="text" id="title" maxlength="120" autocomplete="off">
+      </label>
+      <button type="button" class="primary" id="go">Move to spacesheep</button>
+    </section>
+
+    <section id="status" aria-live="polite" hidden>
+      <p class="step" id="step"></p>
+      <div class="bar" id="bar" role="progressbar" aria-label="Moving"><span></span></div>
+      <div class="result" id="result" hidden>
+        <p class="done-line"><b>✓ <span id="done-what">Moved</span></b> <span class="muted" id="done-who"></span></p>
+        <p class="notes muted" id="done-notes" hidden></p>
+        <div class="row">
+          <a class="primary" id="open" target="_blank" rel="noopener">Open it</a>
+          <button type="button" class="secondary" id="copy">Copy link</button>
+        </div>
+        <button type="button" class="link center" id="more">Move more files</button>
+      </div>
+      <div class="problem error" id="problem" hidden>
+        <p class="title" id="problem-title"></p>
+        <p class="why" id="problem-why"></p>
+        <button type="button" class="primary" id="problem-fix" hidden></button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot mv-foot" id="foot">
+    <span id="who"></span>
+  </footer>
+
+  <script type="module" src="move.js"></script>
+</body>
+</html>

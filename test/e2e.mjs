@@ -10,6 +10,7 @@
 import { chromium } from "playwright";
 import http from "node:http";
 import crypto from "node:crypto";
+import zlib from "node:zlib";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -55,7 +56,47 @@ write(path.join(RUN, "img/chart@2x.png"), png);
 write(path.join(RUN, "img/bg.png"), png);
 write(path.join(RUN, "img/icon.png"), png);
 write(path.join(FIX, "shared/outside.css"), "p { color: gray; }\n");
-write(path.join(FIX, "notes.txt"), "just text\n");
+
+// Not pages: a photo too big for the free plan's 10 MB a file (noise doesn't
+// compress), a two-page PDF, Markdown, a CSV, something with no viewer at all.
+function noisePng(w, h) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc32 = (buf) => { let c = 0xffffffff; for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const c = Buffer.alloc(4); c.writeUInt32BE(crc32(td)); return Buffer.concat([len, td, c]); };
+  const raw = crypto.randomBytes((w * 3 + 1) * h);
+  for (let y = 0; y < h; y++) raw[y * (w * 3 + 1)] = 0;
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", ihdr), chunk("IDAT", zlib.deflateSync(raw, { level: 1 })), chunk("IEND", Buffer.alloc(0))]);
+}
+function makePdf(pages) {
+  const objs = [];
+  const kids = pages.map((_, i) => `${3 + i * 2} 0 R`).join(" ");
+  objs.push("<< /Type /Catalog /Pages 2 0 R >>");
+  objs.push(`<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`);
+  const font = 3 + pages.length * 2;
+  pages.forEach((text, i) => {
+    objs.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents ${4 + i * 2} 0 R /Resources << /Font << /F1 ${font} 0 R >> >> >>`);
+    const stream = `BT /F1 36 Tf 72 680 Td (${text}) Tj ET`;
+    objs.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+  });
+  objs.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+  let out = "%PDF-1.4\n";
+  const offs = [];
+  objs.forEach((o, i) => { offs.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offs.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}`;
+  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out, "latin1");
+}
+const BIG_PHOTO = noisePng(2600, 1700); // ~13 MB
+write(path.join(FIX, "photo.png"), BIG_PHOTO);
+write(path.join(FIX, "deck.pdf"), makePdf(["Quarterly numbers", "Second page here"]));
+write(path.join(FIX, "notes.md"), "# Launch notes\n\nShip **Friday**.\n\n- one\n- two\n\n<script>alert(1)</script>\n");
+write(path.join(FIX, "data.csv"), "city,people\nLisbon,545000\nPorto,232000\n");
+write(path.join(FIX, "archive.zip"), crypto.randomBytes(4000));
+write(path.join(FIX, "mysite/index.html"), `<!doctype html><title>My site</title><link rel="stylesheet" href="style.css"><h1>Hello from a folder</h1>`);
+write(path.join(FIX, "mysite/style.css"), "h1{color:#5a5ae6}");
+write(path.join(FIX, "mysite/.DS_Store"), "junk");
 // Served over http: a page with a 2 MB picture (goes through staged uploads), and an
 // app whose words are all drawn by its script (copied as the tab shows it).
 const SITE = path.join(WORK, "site");
@@ -67,7 +108,7 @@ write(path.join(SITE, "app/index.html"), `<!doctype html><html><head><title>An a
 
 // --- The test build: the extension, allowed to reach localhost and read files -------
 const EXT = path.join(WORK, "ext");
-for (const f of ["manifest.json", "background.js", "popup.html", "popup.css", "popup.js", "lib", "icons"]) {
+for (const f of ["manifest.json", "background.js", "popup.html", "popup.css", "popup.js", "move.html", "move.css", "move.js", "lib", "icons", "vendor"]) {
   fs.cpSync(path.join(ROOT, f), path.join(EXT, f), { recursive: true });
 }
 const manifest = JSON.parse(fs.readFileSync(path.join(EXT, "manifest.json"), "utf8"));
@@ -244,15 +285,23 @@ await report.goto(reportUrl);
 
 // "Allow access to file URLs" the way chrome://extensions flips it; it reloads the extension.
 async function setFileAccess(on) {
+  // The switch reloads the extension: its old worker dies and a new one starts on
+  // the next event, so wait for that one rather than holding on to the old.
+  const next = ctx.waitForEvent("serviceworker", { timeout: 30000 }).catch(() => null);
   const page = await ctx.newPage();
   await page.goto("chrome://extensions");
   // A reload outside developer mode disables an unpacked extension.
   await page.evaluate(() => new Promise((r) => chrome.developerPrivate.updateProfileConfiguration({ inDeveloperMode: true }, r)));
   await page.evaluate(([extId, fileAccess]) => new Promise((r) => chrome.developerPrivate.updateExtensionConfiguration({ extensionId: extId, fileAccess }, r)), [id, on]);
-  // The switch reloads the extension: wait until it's back.
   await page.waitForFunction((extId) => new Promise((r) => chrome.developerPrivate.getExtensionInfo(extId, (i) => r(i.state === "ENABLED"))), id, { timeout: 15000, polling: 200 });
   await page.close();
-  sw = await worker();
+  const wake = await ctx.newPage();
+  for (let i = 0; ; i++) {
+    try { await wake.goto(`chrome-extension://${id}/popup.html`); break; }
+    catch (e) { if (i > 20) throw e; await new Promise((r) => setTimeout(r, 250)); }
+  }
+  sw = (await next) || (await worker());
+  await wake.close();
 }
 
 try {
@@ -282,13 +331,14 @@ try {
     const url = await moveAndWait(pop);
     await pop.locator("body").screenshot({ path: path.join(SHOTS, "3-done.png") });
     ok(as.registered === 1 && as.authorized === 1, "registered once and signed in through OAuth (PKCE checked)");
-    ok(/^https:\/\/spacesheep\.dev\/@[^/]+\//.test(url), `published: ${url}`);
+    ok(/^https:\/\/spacesheep\.dev\/(@[^/]+\/|space\/)/.test(url), `published: ${url}`);
     const stored = await sw.evaluate(() => chrome.storage.local.get(["auth", "account", "moved"]));
     ok(stored.auth && stored.auth.kind === "oauth" && stored.auth.refresh_token, "kept the tokens");
-    ok(stored.account && stored.account.handle, `learned the handle @${stored.account && stored.account.handle}`);
+    // A fresh local account has no @handle yet, so its links are /space/<uuid>.
+    if (/\/@/.test(url)) ok(stored.account && stored.account.handle, `learned the handle @${stored.account && stored.account.handle}`);
     first = stored.moved[reportUrl];
     ok(first && first.uuid, "remembered the page → space");
-    ok(/Publishing as @/.test(await pop.innerText("#who")), "footer: publishing as @handle");
+    ok(/Publishing as @|Connected to spacesheep/.test(await pop.innerText("#who")), "footer: says it's connected");
     await new Promise((r) => setTimeout(r, 500));
     // spacesheep.dev may answer a signed-out test browser with its sign-in page.
     const path_ = new URL(url).pathname;
@@ -365,13 +415,104 @@ try {
     await pop.close();
   }
 
-  console.log("a text file");
+  const spaceFiles = async (uuid) => {
+    const r = await mcpCall("get_space", { uuid });
+    return JSON.stringify(r);
+  };
+  const findSpace = async (title) => {
+    const r = await mcpCall("list_spaces", {});
+    const all = Array.isArray(r) ? r : (r && (r.spaces || r.results)) || [];
+    return all.find((x) => (title instanceof RegExp ? title.test(x.title) : x.title === title));
+  };
+  const movedFor = async (url) => (await sw.evaluate(() => chrome.storage.local.get("moved"))).moved[url];
+
+  console.log("a Markdown file → a page that sets it as a document");
   {
     const page = await ctx.newPage();
-    await page.goto(pathToFileURL(path.join(FIX, "notes.txt")).href);
-    const pop = await openPopup(page, "6-not-html");
-    ok(/isn't an HTML page/.test(await pop.innerText(".title")), "says it only moves HTML pages");
+    await page.goto(pathToFileURL(path.join(FIX, "notes.md")).href);
+    const pop = await openPopup(page, "6-markdown");
+    ok(/notes\.md · text file/.test(await pop.innerText(".meta")), `names it a text file (${await pop.innerText(".meta")})`);
+    await moveAndWait(pop);
+    const html = JSON.stringify(await mcpCall("read_space", { uuid: (await movedFor(page.url())).uuid, path: "index.html" }));
+    ok(/<h2[^>]*>Launch notes<\/h2>/.test(html) && html.includes("<strong>Friday</strong>"), "Markdown set as headings and bold");
+    ok(!html.includes("<script>alert(1)"), "a script in the Markdown stays text");
     await pop.close();
+  }
+
+  console.log("a photo over the plan's 10 MB → a lighter copy on the page, the original left out");
+  {
+    const page = await ctx.newPage();
+    await page.goto(pathToFileURL(path.join(FIX, "photo.png")).href);
+    const pop = await openPopup(page, "7-photo");
+    ok(/photo\.png · picture · 12\.\d MB|photo\.png · picture · 1\d\.\d MB/.test(await pop.innerText(".meta")), `names it a picture (${await pop.innerText(".meta")})`);
+    await moveAndWait(pop);
+    await pop.locator("body").screenshot({ path: path.join(SHOTS, "8-photo-done.png") });
+    ok(/too big for your plan/.test(await pop.innerText(".notes")), "says the original was too big for the plan");
+    const uuid = (await movedFor(page.url())).uuid;
+    const html = JSON.stringify(await mcpCall("read_space", { uuid }));
+    ok(html.includes("shown/photo.webp"), "the page shows the lighter copy");
+    await pop.close();
+  }
+
+  console.log("a PDF tab → its pages as pictures, its text kept");
+  {
+    const page = await ctx.newPage();
+    const opened = await page.goto(pathToFileURL(path.join(FIX, "deck.pdf")).href).then(() => true, () => false);
+    if (!opened || !page.url().endsWith("deck.pdf")) {
+      console.log("  – this Chromium downloads PDFs instead of showing them; the move page covers PDFs below");
+    } else {
+      const pop = await openPopup(page, "9-pdf");
+      await moveAndWait(pop);
+      const uuid = (await movedFor(page.url())).uuid;
+      const html = JSON.stringify(await mcpCall("read_space", { uuid, path: "index.html" }));
+      ok(html.includes("pages/page-1.webp") && html.includes("pages/page-2.webp"), "both pages drawn");
+      ok(html.includes("Quarterly numbers"), "page 1's words are on the page");
+      await pop.close();
+    }
+  }
+
+  console.log("the move page: several files → a gallery and a list, each with its own page");
+  {
+    const mv = await ctx.newPage();
+    await mv.goto(`chrome-extension://${id}/move.html`);
+    await mv.setInputFiles("#pick-files", ["deck.pdf", "notes.md", "data.csv", "archive.zip"].map((f) => path.join(FIX, f)).concat(path.join(RUN, "img/chart.png")));
+    ok(/5 files/.test(await mv.innerText("#picked-count")), "lists what was picked");
+    await mv.fill("#title", "Launch pack");
+    await mv.screenshot({ path: path.join(SHOTS, "10-move-picked.png"), fullPage: true });
+    await mv.click("#go");
+    await mv.waitForSelector("#result:not([hidden]), #problem:not([hidden])", { timeout: 90000 });
+    const problem = await mv.$("#problem:not([hidden])");
+    if (problem) throw new Error(`move page failed: ${await problem.innerText()}`);
+    await mv.screenshot({ path: path.join(SHOTS, "11-move-done.png"), fullPage: true });
+    const url = await mv.getAttribute("#open", "href");
+    ok(/\/(@[^/]+\/launch-pack|space\/[0-9a-f-]{36})/.test(url), `published as one space: ${url}`);
+    const space = await findSpace("Launch pack");
+    const html = JSON.stringify(await mcpCall("read_space", { uuid: space.id, path: "index.html" }));
+    ok(html.includes("view/deck.pdf.html") && html.includes("view/archive.zip.html"), "the list links each file's page");
+    ok(/data-ss-id=\\"pictures/.test(html), "pictures in a grid");
+    const pdfView = JSON.stringify(await mcpCall("read_space", { uuid: space.id, path: "view/deck.pdf.html" }));
+    ok(pdfView.includes("deck.pdf.files/page-2.webp") && pdfView.includes("Second page here"), "the PDF's page: both pages drawn, words kept");
+    const csvView = JSON.stringify(await mcpCall("read_space", { uuid: space.id, path: "view/data.csv.html" }));
+    ok(csvView.includes("545000"), "the CSV as a table");
+    await mv.close();
+  }
+
+  console.log("the move page: a folder with an index.html → a website, junk left out");
+  {
+    const mv = await ctx.newPage();
+    await mv.goto(`chrome-extension://${id}/move.html`);
+    await mv.setInputFiles("#pick-folder", path.join(FIX, "mysite"));
+    const count = await mv.innerText("#picked-count");
+    ok(/2 files|3 files/.test(count), `picked the folder (${count})`);
+    await mv.click("#go");
+    await mv.waitForSelector("#result:not([hidden]), #problem:not([hidden])", { timeout: 60000 });
+    const space = await findSpace(/mysite/i);
+    ok(!!space, "published under the folder's name");
+    const html = JSON.stringify(await mcpCall("read_space", { uuid: space.id, path: "index.html" }));
+    ok(html.includes("Hello from a folder"), "its own index.html is the front page");
+    const files = await spaceFiles(space.id);
+    ok(!files.includes("DS_Store"), "no .DS_Store");
+    await mv.close();
   }
 
   console.log("disconnect");

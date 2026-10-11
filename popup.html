@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Move to spacesheep</title>
+  <title>spacesheep</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
@@ -14,6 +14,8 @@
   <main id="view" aria-live="polite">
     <p class="muted" id="reading">Reading this page…</p>
   </main>
+
+  <nav class="ways"><button type="button" class="link" id="files">Move files or a folder from your computer…</button></nav>
 
   <footer class="foot" id="foot" hidden>
     <span id="who"></span>
@@ -53,6 +55,7 @@
         <p class="meta muted"></p>
       </div>
     </section>
+    <p class="notes muted" hidden></p>
     <div class="row">
       <a class="primary" id="open" target="_blank" rel="noopener">Open it</a>
       <button type="button" class="secondary" id="copy">Copy link</button>

@@ -1,14 +1,17 @@
 // The popup: say what will move, move it on one press, show how it's going.
-import { readTab, toB64, ReadError } from "./lib/read.js";
+import { readTab, ReadError } from "./lib/read.js";
+import { stashPut } from "./lib/stash.js";
+import { KIND_WORD, humanSize } from "./lib/kinds.js";
 
 const view = document.getElementById("view");
 const ask = (msg) => chrome.runtime.sendMessage(msg);
+const openMover = () => chrome.tabs.create({ url: chrome.runtime.getURL("move.html") });
 let tab = null;
 let page = null;   // what readTab found
 let state = null;  // the service worker's answer to "state"
 
-const kb = (n) => (n < 1024 ? `${n} bytes` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const ICON = { page: "📄", image: "🖼️", pdf: "📕", video: "🎬", audio: "🎧", text: "📝", file: "📦" };
 
 function show(id) {
   view.replaceChildren(document.getElementById(id).content.cloneNode(true));
@@ -51,18 +54,25 @@ document.getElementById("disconnect").addEventListener("click", async () => {
   renderFoot();
   if (page) renderReady();
 });
+document.getElementById("files").addEventListener("click", openMover);
 
 // --- Views ----------------------------------------------------------------------
 
 function renderReady() {
   show("t-ready");
+  view.querySelector(".doc").textContent = ICON[page.kind] || "📄";
   view.querySelector(".title").textContent = page.title;
-  const extra = page.files.length - 1;
   const where = page.isFile ? page.name : shortUrl(page.sourceUrl);
-  view.querySelector(".meta").textContent =
-    `${where} · ${kb(page.bytes)}${extra ? ` · with ${plural(extra, "file", "files")} from its folder` : ""}`;
+  if (page.kind === "page") {
+    const extra = page.files.length - 1;
+    view.querySelector(".meta").textContent =
+      `${where} · ${humanSize(page.bytes)}${extra ? ` · with ${plural(extra, "file", "files")} from its folder` : ""}`;
+  } else {
+    view.querySelector(".meta").textContent = `${where} · ${KIND_WORD[page.kind] || "file"} · ${humanSize(page.size || page.bytes)}`;
+  }
 
   const notes = [];
+  if (page.note) notes.push(page.note);
   if (page.snapshot) notes.push("Copied as the tab shows it.");
   const { outside, missing, tooBig, overLimit } = page.skipped;
   if (outside) notes.push(`${plural(outside, "file", "files")} outside its folder won't come along.`);
@@ -109,6 +119,11 @@ function renderDone(job) {
   view.querySelector(".title").textContent = job.title || "Moved";
   const what = job.unchanged ? "Already up to date" : job.update ? "Updated" : "Moved";
   view.querySelector(".meta").textContent = `${what} · ${WHO_CAN_OPEN[job.visibility] || "Open it to share it."}`;
+  if (job.dropped && job.dropped.length) {
+    const n = view.querySelector(".notes");
+    n.textContent = `${plural(job.dropped.length, "full-size original was", "full-size originals were")} too big for your plan; the page shows a lighter copy.`;
+    n.hidden = false;
+  }
   const open = view.querySelector("#open");
   open.href = job.url;
   view.querySelector("#copy").addEventListener("click", async (e) => {
@@ -119,30 +134,44 @@ function renderDone(job) {
   ask({ type: "seen" });
 }
 
+const PLANS = () => chrome.tabs.create({ url: "https://spacesheep.dev/plans" });
+
 const PROBLEMS = {
   file_access: {
     title: "Chrome needs your OK to read files",
-    why: "This page is a file on your computer. Turn on “Allow access to file URLs” for Move to spacesheep, then click the sheep again.",
+    why: "This is a file on your computer. Turn on “Allow access to file URLs” for spacesheep, then click the sheep again.",
     fix: "Open the setting",
     act: () => chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` }),
   },
   file_access_maybe: {
     title: "Chrome needs your OK to read files",
-    why: "If this tab is a file on your computer, turn on “Allow access to file URLs” for Move to spacesheep, then click the sheep again.",
+    why: "If this tab is a file on your computer, turn on “Allow access to file URLs” for spacesheep, then click the sheep again.",
     fix: "Open the setting",
     act: () => chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` }),
   },
   no_page: {
-    title: "Nothing to move here",
-    why: "Open an HTML file or a web page, then click the sheep.",
+    title: "Nothing to move in this tab",
+    why: "Open a page, a picture, a PDF or any file in Chrome and click the sheep. Or pick files and folders from your computer.",
+    fix: "Move files from your computer",
+    act: openMover,
   },
-  not_html: {
-    title: "This tab isn't an HTML page",
-    why: "Move to spacesheep copies HTML pages and the files they load.",
+  folder: {
+    title: "This tab is a folder",
+    why: "Pick the folder from your computer to move all of it at once.",
+    fix: "Move files from your computer",
+    act: openMover,
   },
   no_access: {
     title: "Chrome didn't let the extension read this tab",
-    why: "Some pages are off-limits to extensions. Reload the tab and try again.",
+    why: "Some pages are off-limits to extensions. Reload the tab and try again, or move the file from your computer.",
+    fix: "Move files from your computer",
+    act: openMover,
+  },
+  too_big: {
+    title: "Too big for your plan",
+    why: "Nothing was published.",
+    fix: "See plans",
+    act: PLANS,
   },
   cancelled: {
     title: "Sign-in was closed before it finished",
@@ -187,7 +216,7 @@ function renderProblem(code, message, { retry } = {}) {
   box.classList.toggle("error", !PROBLEMS[code] || !!retry);
   view.querySelector(".title").textContent = p.title;
   view.querySelector(".why").textContent = p.why;
-  if (PROBLEMS[code] && message && !["file_access", "file_access_maybe", "no_page", "cancelled"].includes(code)) {
+  if (PROBLEMS[code] && message && !["file_access", "file_access_maybe", "no_page", "folder", "cancelled"].includes(code)) {
     const d = view.querySelector(".detail");
     d.textContent = message;
     d.hidden = false;
@@ -204,14 +233,17 @@ function renderProblem(code, message, { retry } = {}) {
 // --- Moving -------------------------------------------------------------------
 
 async function start(uuid) {
+  renderWorking({ step: "connecting", title: page.title });
+  const jobId = crypto.randomUUID();
+  await stashPut(jobId, page.files.map((f) => ({ path: f.path, blob: f.blob, html: !!f.html, optional: !!f.optional })));
   const req = {
+    jobId,
+    kind: page.kind,
     title: page.title,
     sourceUrl: page.sourceUrl,
     uuid: uuid || null,
     tab: { id: tab.id, index: tab.index, windowId: tab.windowId },
-    files: page.files.map((f) => ({ path: f.path, b64: toB64(f.bytes), html: !!f.html })),
   };
-  renderWorking({ step: "connecting", title: page.title });
   const r = await ask({ type: "move", req });
   if (!r || !r.ok) renderProblem("failed", r && r.busy ? "Another move is still running — wait for it to finish." : null);
 }
@@ -226,6 +258,14 @@ chrome.runtime.onMessage.addListener((msg) => {
   } else renderWorking(job);
   if (job.step === "done" || job.step === "error") ask({ type: "state", sourceUrl: tab && tab.url }).then((s) => { state = s; renderFoot(); });
 });
+
+function readingWords(step, a, b, c) {
+  if (step === "assets") return `Reading ${plural(a, "file", "files")} beside it…`;
+  if (step === "pdf") return `Drawing page ${b} of ${c}…`;
+  if (step === "image") return "Preparing the picture…";
+  if (step === "file") return "Reading the file…";
+  return "Reading this page…";
+}
 
 /** Read the tab and show what would move. `fresh` skips a finished move's outcome. */
 async function begin(fresh = false) {
@@ -249,18 +289,18 @@ async function begin(fresh = false) {
   if (finished) ask({ type: "seen" });
 
   show("t-working");
-  view.querySelector(".title").textContent = tab && tab.title ? tab.title : "This page";
-  view.querySelector(".step").textContent = "Reading this page…";
+  view.querySelector(".title").textContent = tab && tab.title ? tab.title : "This tab";
+  view.querySelector(".step").textContent = "Reading this tab…";
   try {
-    page = await readTab(tab, (step, n) => {
+    page = await readTab(tab, (step, a, b, c) => {
       const el = view.querySelector(".step");
-      if (el) el.textContent = step === "assets" ? `Reading ${plural(n, "file", "files")} beside it…` : "Reading this page…";
+      if (el) el.textContent = readingWords(step, a, b, c);
     });
     // The pick of what to update is per address the page had when it was read.
     if (page.sourceUrl !== tab.url) state = await ask({ type: "state", sourceUrl: page.sourceUrl });
     renderReady();
   } catch (e) {
-    if (e instanceof ReadError) renderProblem(e.code, e.code === "not_html" ? null : e.message);
+    if (e instanceof ReadError) renderProblem(e.code, e.message);
     else renderProblem("failed", String((e && e.message) || e), { retry: () => begin(true) });
   }
 }

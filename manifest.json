@@ -1,21 +1,46 @@
 {
   "manifest_version": 3,
-  "name": "Move to spacesheep",
+  "name": "spacesheep",
   "short_name": "spacesheep",
-  "version": "0.1.0",
-  "description": "Publish the HTML file or page in this tab to your spacesheep.dev account, with the images and styles beside it.",
+  "version": "0.2.0",
+  "description": "Move anything open in Chrome to spacesheep.dev in one click: a page, a picture, a PDF, a video, a document. It gets its own link, private until you share it.",
   "homepage_url": "https://spacesheep.dev",
   "minimum_chrome_version": "116",
   "action": {
     "default_title": "Move to spacesheep",
     "default_popup": "popup.html",
-    "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png" }
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
+    }
   },
-  "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
-  "background": { "service_worker": "background.js", "type": "module" },
-  "permissions": ["activeTab", "scripting", "identity", "storage"],
-  "host_permissions": ["https://mcp.spacesheep.dev/*"],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "identity",
+    "storage",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://mcp.spacesheep.dev/*"
+  ],
   "commands": {
-    "_execute_action": { "description": "Move this page to spacesheep" }
+    "_execute_action": {
+      "description": "Move this tab to spacesheep"
+    }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
   }
 }
