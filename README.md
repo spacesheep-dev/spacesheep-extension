@@ -13,11 +13,13 @@ instead of making a second one.
 
 From the Chrome Web Store: *(listing pending)*.
 
-From source:
+Until then, from a release:
 
-1. Download or clone this repository.
+1. Download `move-to-spacesheep-<version>.zip` from
+   [Releases](https://github.com/spacesheep-dev/spacesheep-extension/releases/latest)
+   and unzip it (or clone this repository).
 2. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**
-   and pick this folder.
+   and pick the unzipped folder.
 3. To move files from your computer (`file://` pages), open the extension's
    **Details** and turn on **Allow access to file URLs**. The popup offers to take
    you there the first time it needs it.

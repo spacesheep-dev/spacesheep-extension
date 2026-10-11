@@ -1,0 +1,16 @@
+name: test
+on:
+  push:
+  pull_request:
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The unit tests need no dependencies; the end-to-end run needs local
+      # spacesheep workers and runs by hand (README → Development).
+      - run: npm test
+      - run: node scripts/zip.mjs && unzip -l dist/*.zip
