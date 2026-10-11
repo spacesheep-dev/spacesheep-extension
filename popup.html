@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Move to spacesheep</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="top">
+    <img src="icons/icon-32.png" width="16" height="14" alt="" class="logo">
+    <span class="brand">spacesheep</span>
+  </header>
+
+  <main id="view" aria-live="polite">
+    <p class="muted" id="reading">Reading this page…</p>
+  </main>
+
+  <footer class="foot" id="foot" hidden>
+    <span id="who"></span>
+    <button type="button" class="link" id="disconnect" hidden>Disconnect</button>
+  </footer>
+
+  <template id="t-ready">
+    <section class="page">
+      <div class="doc" aria-hidden="true">📄</div>
+      <div class="page-text">
+        <h1 class="title"></h1>
+        <p class="meta muted"></p>
+      </div>
+    </section>
+    <p class="notes muted" hidden></p>
+    <button type="button" class="primary" id="go"></button>
+    <button type="button" class="link center" id="as-new" hidden>Publish as a new page instead</button>
+    <p class="first muted" hidden>First time: you'll approve the connection on spacesheep.dev, once.</p>
+  </template>
+
+  <template id="t-working">
+    <section class="page">
+      <div class="doc" aria-hidden="true">📄</div>
+      <div class="page-text">
+        <h1 class="title"></h1>
+        <p class="step"></p>
+      </div>
+    </section>
+    <div class="bar" role="progressbar" aria-label="Moving"><span></span></div>
+  </template>
+
+  <template id="t-done">
+    <section class="page">
+      <div class="doc ok" aria-hidden="true">✓</div>
+      <div class="page-text">
+        <h1 class="title"></h1>
+        <p class="meta muted"></p>
+      </div>
+    </section>
+    <div class="row">
+      <a class="primary" id="open" target="_blank" rel="noopener">Open it</a>
+      <button type="button" class="secondary" id="copy">Copy link</button>
+    </div>
+    <button type="button" class="link center" id="again">Move this tab's page</button>
+  </template>
+
+  <template id="t-problem">
+    <section class="problem">
+      <h1 class="title"></h1>
+      <p class="why"></p>
+      <p class="detail muted" hidden></p>
+    </section>
+    <button type="button" class="primary" id="fix" hidden></button>
+  </template>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
