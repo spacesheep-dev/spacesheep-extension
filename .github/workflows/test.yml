@@ -13,4 +13,4 @@ jobs:
       # The unit tests need no dependencies; the end-to-end run needs local
       # spacesheep workers and runs by hand (README → Development).
       - run: npm test
-      - run: node scripts/zip.mjs && unzip -l dist/*.zip
+      - run: node scripts/zip.mjs && unzip -l dist/spacesheep-extension.zip | tail -1
