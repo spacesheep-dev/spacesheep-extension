@@ -23,10 +23,10 @@ move files or a whole folder from your computer.
 
 ## Install
 
-From the Chrome Web Store: *(listing pending)*. More at
+[Add to Chrome from the Chrome Web Store](https://chromewebstore.google.com/detail/spacesheep/aocbmkbjnfohnbnbglcoabbkccnoegpe). More at
 [spacesheep.dev/extension](https://spacesheep.dev/extension).
 
-Until then, from a release:
+Alternatively, install manually from a release:
 
 1. Download [spacesheep-extension.zip](https://github.com/spacesheep-dev/spacesheep-extension/releases/latest/download/spacesheep-extension.zip)
    (the latest release) and unzip it, or clone this repository.
