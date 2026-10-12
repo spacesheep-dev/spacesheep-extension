@@ -1,0 +1,7 @@
+Save the page you’re viewing in Chrome to your spacesheep account. The extension copies the page with its layout and images, creates a private space, and opens it in a new tab.
+
+You can also select or drop files and folders from your computer. A folder containing index.html can be saved as a website. Saving the same page again updates its existing space instead of creating a duplicate.
+
+A spacesheep account is required. Connect it on first use; uploads are subject to your account’s plan limits. To save a local file already open in Chrome, enable Allow access to file URLs in the extension’s settings.
+
+The extension reads a tab only when you invoke it and uploads the content you select to spacesheep. You control whether to share the resulting space. The extension does not include analytics.
