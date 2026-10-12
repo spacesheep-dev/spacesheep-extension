@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "spacesheep",
   "short_name": "spacesheep",
-  "version": "0.2.0",
-  "description": "Move anything open in Chrome to spacesheep.dev in one click: a page, a picture, a PDF, a video, a document. It gets its own link, private until you share it.",
+  "version": "0.2.1",
+  "description": "Move pages, pictures, PDFs, videos and files to spacesheep in one click. Each gets its own link, private until you share it.",
   "homepage_url": "https://spacesheep.dev",
   "minimum_chrome_version": "116",
   "action": {

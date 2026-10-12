@@ -9,6 +9,7 @@
     "zip": "node scripts/zip.mjs"
   },
   "devDependencies": {
+    "@resvg/resvg-wasm": "^2.6.2",
     "pdfjs-dist": "^6.4.299",
     "playwright": "^1.62.1"
   }
