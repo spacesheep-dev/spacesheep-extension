@@ -1,7 +1,7 @@
 // node --test test/  — the pure path rules. (pageRefs needs a DOM; the e2e covers it.)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { dirOf, fileName, relPath, cssRefs, isCss } from "../lib/refs.js";
+import { dirOf, fileName, relPath, cssRefs, cssRefPairs, isCss, SPACE_ROOT } from "../lib/refs.js";
 
 test("dirOf keeps the folder, drops the file, query and hash", () => {
   assert.equal(dirOf("file:///Users/a/reports/run%201/report.html?x=1#top"), "file:///Users/a/reports/run%201/");
@@ -53,4 +53,23 @@ test("isCss by name or type", () => {
   assert.ok(isCss("a/b.CSS", ""));
   assert.ok(isCss("style", "text/css; charset=utf-8"));
   assert.ok(!isCss("a.js", "text/javascript"));
+});
+
+test("a site's own file is stored where the copied page looks for it", () => {
+  // The page /mcp/clients/page becomes the space's front page: a stylesheet named
+  // from the site's root is read from the site and stored at the same path.
+  const page = "https://docs.example.com/mcp/clients/page";
+  const at = (raw) => relPath(new URL(raw, SPACE_ROOT).href, SPACE_ROOT);
+  assert.equal(new URL("/assets/_next/a.css?v=1", page).href, "https://docs.example.com/assets/_next/a.css?v=1");
+  assert.equal(at("/assets/_next/a.css?v=1"), "assets/_next/a.css");
+  assert.equal(at("img/a.png"), "img/a.png");
+  assert.equal(at("https://cdn.example.com/x.css"), null); // still loads from there
+});
+
+test("cssRefPairs: a stylesheet's references resolve from where its copy is stored", () => {
+  const [font] = cssRefPairs("@font-face{src:url(../media/f.woff2)}",
+    "https://docs.example.com/assets/css/a.css?v=1", SPACE_ROOT + "assets/css/a.css");
+  assert.equal(font.abs, "https://docs.example.com/assets/media/f.woff2");
+  assert.equal(relPath(font.at, SPACE_ROOT), "assets/media/f.woff2");
+  assert.equal(font.kind, "style");
 });
