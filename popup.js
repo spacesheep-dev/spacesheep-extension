@@ -66,7 +66,7 @@ function renderReady() {
   if (page.kind === "page") {
     const extra = page.files.length - 1;
     view.querySelector(".meta").textContent =
-      `${where} · ${humanSize(page.bytes)}${extra ? ` · with ${plural(extra, "file", "files")} from its folder` : ""}`;
+      `${where} · ${humanSize(page.bytes)}${extra ? ` · with ${plural(extra, "file", "files")} ${page.isFile ? "from its folder" : "from the site"}` : ""}`;
   } else {
     view.querySelector(".meta").textContent = `${where} · ${KIND_WORD[page.kind] || "file"} · ${humanSize(page.size || page.bytes)}`;
   }

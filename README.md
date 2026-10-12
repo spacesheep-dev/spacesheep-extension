@@ -11,7 +11,8 @@ move files or a whole folder from your computer.
 
 | What's in the tab | What the space shows |
 |---|---|
-| An HTML page | The page, with the images, styles and scripts it loads from its folder |
+| A page from a website | The page as the tab shows it, with the site's own styles, fonts and images it loads |
+| An HTML file from your computer | The page as written, with the images, styles and scripts it loads from its folder |
 | A picture | The picture, whole; a lighter copy when the original is big, the original as the download |
 | A PDF | Its pages as pictures (Chrome won't show a PDF inside a space's frame), each page's words kept for search, readers and agents, and the PDF as the download |
 | A video or a sound | A player |
@@ -41,11 +42,14 @@ it's one click (or a keyboard shortcut you set at `chrome://extensions/shortcuts
 ## What it reads, and where it goes
 
 - **Only when you click it**, and only the tab you clicked it on (Chrome's
-  `activeTab`): the file it shows and, for a page, the files it loads from its folder
-  and the folders below it. Never anything above that folder, never `<a href>` links,
-  never other tabs, history or cookies. From your computer, only the files you pick.
-- A page whose words are all drawn by its scripts (a web app) is copied as the tab
-  shows it, with those scripts left out. A local file is always copied as written.
+  `activeTab`): the file it shows and, for a page, the files it loads: from a website,
+  the site's own files (its styles, fonts and images); from your computer, only the
+  page's folder and the folders below it, never anything above that folder. Never
+  `<a href>` links, never other tabs, history or cookies. From your computer, only
+  the files you pick.
+- A page from a website is copied as the tab shows it, with its scripts left out: a
+  site's scripts are written for its own server and break on a copy. A local file is
+  always copied as written, scripts and all.
 - PDFs are drawn into pictures on your computer, by [pdf.js](https://github.com/mozilla/pdf.js)
   inside the extension. Nothing is sent anywhere to do it.
 - **It sends files to spacesheep and nowhere else**: `mcp.spacesheep.dev`, the same
@@ -68,7 +72,7 @@ it's one click (or a keyboard shortcut you set at `chrome://extensions/shortcuts
 | `popup.js` | Reads the tab (it holds the click's `activeTab` grant), shows what will move, stashes the files, shows progress. |
 | `move.html`, `move.js` | Files and folders from the computer, dropped or picked. |
 | `lib/read.js` | What the tab shows: `file://` through the extension's file access, `http(s)` from inside the page (same origin, its own cookies). |
-| `lib/refs.js` | Which files a page loads: `src`, `srcset`, stylesheets, icons, `url()` and `@import` in its CSS. |
+| `lib/refs.js` | Which files a page loads (`src`, `srcset`, stylesheets, icons, `url()` and `@import` in its CSS), and where the copy will look for each one. |
 | `lib/kinds.js`, `lib/viewers.js`, `lib/build.js` | What kind of file it is, the page that shows it, and the files of the space. |
 | `lib/pdf.js` | A PDF's pages as pictures, with their words (`vendor/pdfjs`). |
 | `lib/stash.js` | Files on their way to the service worker, in IndexedDB (a message can't carry a video). |
