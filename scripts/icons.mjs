@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Rasterize the canonical spacesheep app mark, copied from
 // spacesheep/assets/media/brand/logo-sheep-fnx.svg to icons/sheep-mark.svg.
-// Run npm run icons after refreshing that SVG. The 128px store icon has
-// 16px transparent margins; toolbar sizes use the available width.
+// The source has opaque white body and eyes, with transparency outside the sheep.
+// The 128px store icon has 16px transparent margins; toolbar sizes use the width.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { initWasm, Resvg } from '@resvg/resvg-wasm';

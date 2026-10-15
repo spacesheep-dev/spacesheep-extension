@@ -6,18 +6,15 @@
 // links it) is always the newest; and as move-to-spacesheep.zip, the name 0.1.0 had,
 // so links sent before the rename keep working.
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { copyFileSync, rmSync } from "node:fs";
+import { build, root } from "./package.mjs";
 
-const root = fileURLToPath(new URL("..", import.meta.url));
-const { version } = JSON.parse(readFileSync(new URL("../manifest.json", import.meta.url), "utf8"));
-const out = `dist/spacesheep-extension-${version}.zip`;
-const files = [
-  "manifest.json", "background.js", "popup.html", "popup.css", "popup.js", "move.html", "move.css", "move.js",
-  "lib", "vendor", "icons/icon-16.png", "icons/icon-32.png", "icons/icon-48.png", "icons/icon-128.png",
-];
-mkdirSync(`${root}/dist`, { recursive: true });
+const browser = process.argv[2] || "chrome";
+const { directory, manifest: { version } } = build(browser);
+const name = browser === "firefox" ? "spacesheep-firefox" : "spacesheep-extension";
+const out = `dist/${name}-${version}.zip`;
 rmSync(`${root}/${out}`, { force: true });
-execFileSync("zip", ["-X", "-q", "-r", out, ...files, "-x", "*.DS_Store"], { cwd: root, stdio: "inherit" });
-for (const name of ["spacesheep-extension.zip", "move-to-spacesheep.zip"]) copyFileSync(`${root}/${out}`, `${root}/dist/${name}`);
-console.log(`${out}\ndist/spacesheep-extension.zip\ndist/move-to-spacesheep.zip`);
+execFileSync("zip", ["-X", "-q", "-r", `${root}/${out}`, "."], { cwd: directory, stdio: "inherit" });
+const aliases = browser === "firefox" ? [`${name}.zip`] : [`${name}.zip`, "move-to-spacesheep.zip"];
+for (const alias of aliases) copyFileSync(`${root}/${out}`, `${root}/dist/${alias}`);
+console.log([out, ...aliases.map((alias) => `dist/${alias}`)].join("\n"));

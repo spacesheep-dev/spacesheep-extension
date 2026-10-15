@@ -1,11 +1,12 @@
 // The popup: say what will move, move it on one press, show how it's going.
+import { extension, browserName } from "./lib/browser.js";
 import { readTab, ReadError } from "./lib/read.js";
 import { stashPut } from "./lib/stash.js";
 import { KIND_WORD, humanSize } from "./lib/kinds.js";
 
 const view = document.getElementById("view");
-const ask = (msg) => chrome.runtime.sendMessage(msg);
-const openMover = () => chrome.tabs.create({ url: chrome.runtime.getURL("move.html") });
+const ask = (msg) => extension.runtime.sendMessage(msg);
+const openMover = () => extension.tabs.create({ url: extension.runtime.getURL("move.html") });
 let tab = null;
 let page = null;   // what readTab found
 let state = null;  // the service worker's answer to "state"
@@ -134,24 +135,36 @@ function renderDone(job) {
   ask({ type: "seen" });
 }
 
-const PLANS = () => chrome.tabs.create({ url: "https://spacesheep.dev/plans" });
+const PLANS = () => extension.tabs.create({ url: "https://spacesheep.dev/plans" });
 
 const PROBLEMS = {
+  file_picker: {
+    title: "Pick this file from your computer",
+    why: "In Firefox, use the file picker to move local files. Pick the whole folder to include an HTML page's pictures, styles and scripts.",
+    fix: "Move files from your computer",
+    act: openMover,
+  },
+  pdf_viewer: {
+    title: "Pick this PDF from your computer",
+    why: "Firefox protects its PDF viewer from extensions. Download the PDF, then pick it here to move it to spacesheep.",
+    fix: "Move files from your computer",
+    act: openMover,
+  },
   file_access: {
     title: "Chrome needs your OK to read files",
     why: "This is a file on your computer. Turn on “Allow access to file URLs” for spacesheep, then click the sheep again.",
     fix: "Open the setting",
-    act: () => chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` }),
+    act: () => extension.tabs.create({ url: `chrome://extensions/?id=${extension.runtime.id}` }),
   },
   file_access_maybe: {
     title: "Chrome needs your OK to read files",
     why: "If this tab is a file on your computer, turn on “Allow access to file URLs” for spacesheep, then click the sheep again.",
     fix: "Open the setting",
-    act: () => chrome.tabs.create({ url: `chrome://extensions/?id=${chrome.runtime.id}` }),
+    act: () => extension.tabs.create({ url: `chrome://extensions/?id=${extension.runtime.id}` }),
   },
   no_page: {
     title: "Nothing to move in this tab",
-    why: "Open a page, a picture, a PDF or any file in Chrome and click the sheep. Or pick files and folders from your computer.",
+    why: `Open a page, a picture or a file in ${browserName} and click the sheep. Or pick files and folders from your computer.`,
     fix: "Move files from your computer",
     act: openMover,
   },
@@ -162,8 +175,8 @@ const PROBLEMS = {
     act: openMover,
   },
   no_access: {
-    title: "Chrome didn't let the extension read this tab",
-    why: "Some pages are off-limits to extensions. Reload the tab and try again, or move the file from your computer.",
+    title: `${browserName} didn't let the extension read this tab`,
+    why: "Some pages and PDF viewers are off-limits to extensions. Reload the tab and try again, or download the file and move it from your computer.",
     fix: "Move files from your computer",
     act: openMover,
   },
@@ -216,7 +229,7 @@ function renderProblem(code, message, { retry } = {}) {
   box.classList.toggle("error", !PROBLEMS[code] || !!retry);
   view.querySelector(".title").textContent = p.title;
   view.querySelector(".why").textContent = p.why;
-  if (PROBLEMS[code] && message && !["file_access", "file_access_maybe", "no_page", "folder", "cancelled"].includes(code)) {
+  if (PROBLEMS[code] && message && !["file_access", "file_access_maybe", "file_picker", "pdf_viewer", "no_page", "folder", "cancelled"].includes(code)) {
     const d = view.querySelector(".detail");
     d.textContent = message;
     d.hidden = false;
@@ -248,7 +261,7 @@ async function start(uuid) {
   if (!r || !r.ok) renderProblem("failed", r && r.busy ? "Another move is still running — wait for it to finish." : null);
 }
 
-chrome.runtime.onMessage.addListener((msg) => {
+extension.runtime.onMessage.addListener((msg) => {
   if (!msg || msg.type !== "job" || !msg.job) return;
   const job = msg.job;
   if (job.step === "done") renderDone(job);
@@ -272,7 +285,7 @@ async function begin(fresh = false) {
   // ?tab=<id> opens the popup on a given tab: how the end-to-end test drives it
   // (an automated browser can't press the toolbar button).
   const forced = Number(new URLSearchParams(location.search).get("tab"));
-  [tab] = forced ? [await chrome.tabs.get(forced)] : await chrome.tabs.query({ active: true, currentWindow: true });
+  [tab] = forced ? [await extension.tabs.get(forced)] : await extension.tabs.query({ active: true, currentWindow: true });
   state = await ask({ type: "state", sourceUrl: tab && tab.url });
   renderFoot();
 

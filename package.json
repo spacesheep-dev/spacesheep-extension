@@ -5,12 +5,22 @@
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "e2e": "node test/e2e.mjs",
+    "e2e:firefox": "node test/firefox.mjs",
+    "build:firefox": "node scripts/build.mjs firefox",
+    "lint:firefox": "npm run build:firefox && web-ext lint --source-dir dist/firefox",
     "icons": "node scripts/icons.mjs",
-    "zip": "node scripts/zip.mjs"
+    "zip": "node scripts/zip.mjs",
+    "zip:firefox": "node scripts/zip.mjs firefox"
   },
   "devDependencies": {
     "@resvg/resvg-wasm": "^2.6.2",
     "pdfjs-dist": "^6.4.299",
-    "playwright": "^1.62.1"
+    "playwright": "^1.62.1",
+    "web-ext": "^10.7.0"
+  },
+  "overrides": {
+    "fx-runner": {
+      "shell-quote": "^1.11.0"
+    }
   }
 }

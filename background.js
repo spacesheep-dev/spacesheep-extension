@@ -1,6 +1,7 @@
-// The service worker: signs in, publishes, and opens the result. The popup (or the
+// The background context (Chrome service worker, Firefox event page): signs in, publishes, and opens the result. The popup (or the
 // move page) reads and builds the files and stashes them (lib/stash.js), because the
 // popup closes the moment the sign-in window takes focus — the work has to outlive it.
+import { extension, browserName } from "./lib/browser.js";
 import { signIn, signOut, isConnected, serverOrigin, AuthError } from "./lib/auth.js";
 import { Mcp } from "./lib/mcp.js";
 import { stashGet, stashDrop, stashSweep } from "./lib/stash.js";
@@ -13,17 +14,17 @@ let job = null; // the move in flight: { id, step, … }, mirrored to storage.se
 
 async function setJob(patch) {
   job = patch === null ? null : { ...(job || {}), ...patch, at: Date.now() };
-  await chrome.storage.session.set({ job });
-  chrome.runtime.sendMessage({ type: "job", job }).catch(() => {}); // no popup open: fine
+  await extension.storage.session.set({ job });
+  extension.runtime.sendMessage({ type: "job", job }).catch(() => {}); // no popup open: fine
 }
 
 function badge(text, color) {
-  chrome.action.setBadgeText({ text });
-  if (color) chrome.action.setBadgeBackgroundColor({ color });
+  extension.action.setBadgeText({ text });
+  if (color) extension.action.setBadgeBackgroundColor({ color });
 }
 
 async function account() {
-  const { account } = await chrome.storage.local.get("account");
+  const { account } = await extension.storage.local.get("account");
   return account || null;
 }
 
@@ -31,11 +32,11 @@ async function account() {
 async function learnAccount(url) {
   const handle = (String(url || "").match(/\/@([a-z0-9][a-z0-9_-]*)\//i) || [])[1];
   if (!handle) return;
-  await chrome.storage.local.set({ account: { handle } });
+  await extension.storage.local.set({ account: { handle } });
 }
 
 async function moved() {
-  const { moved } = await chrome.storage.local.get("moved");
+  const { moved } = await extension.storage.local.get("moved");
   return moved || {};
 }
 
@@ -46,7 +47,7 @@ async function remember(sourceUrl, entry) {
   if (keys.length > MOVED_KEEP) {
     keys.sort((a, b) => (all[a].at || 0) - (all[b].at || 0)).slice(0, keys.length - MOVED_KEEP).forEach((k) => delete all[k]);
   }
-  await chrome.storage.local.set({ moved: all });
+  await extension.storage.local.set({ moved: all });
 }
 
 function toB64(bytes) {
@@ -91,7 +92,7 @@ async function stage(begin, files) {
 /** Publish what a page stashed (lib/stash.js); open the space when it's up. */
 async function move(req) {
   const id = crypto.randomUUID();
-  const keepAlive = setInterval(() => chrome.runtime.getPlatformInfo(), 20_000);
+  const keepAlive = setInterval(() => extension.runtime.getPlatformInfo(), 20_000);
   badge("…", "#5a5ae6");
   await setJob({ id, step: "connecting", title: req.title, sourceUrl: req.sourceUrl, update: !!req.uuid, error: null, url: null, done: 0, of: 0, dropped: [] });
   try {
@@ -115,7 +116,7 @@ async function move(req) {
     }
 
     await setJob({ step: "publishing" });
-    const args = { files, version_name: req.uuid ? "Updated from Chrome" : "Moved from Chrome" };
+    const args = { files, version_name: `${req.uuid ? "Updated" : "Moved"} from ${browserName}` };
     if (req.uuid) args.uuid = req.uuid;
     else Object.assign(args, { title: req.title, emoji: EMOJI[req.kind] || "📄" });
     const result = await mcp.call("deploy", args);
@@ -127,7 +128,7 @@ async function move(req) {
     await setJob({ step: "done", url: result.url, visibility: result.visibility || null, unchanged: !!result.unchanged, dropped });
     badge("✓", "#2d8f5e");
     setTimeout(() => badge(""), 4000);
-    await chrome.tabs.create({ url: result.url, ...(req.tab ? { index: req.tab.index + 1, openerTabId: req.tab.id, windowId: req.tab.windowId } : {}) });
+    await extension.tabs.create({ url: result.url, ...(req.tab ? { index: req.tab.index + 1, openerTabId: req.tab.id, windowId: req.tab.windowId } : {}) });
   } catch (e) {
     const code = e instanceof AuthError ? e.code : e.code || "failed";
     await setJob({ step: "error", error: { code, message: String(e.message || e) } });
@@ -145,18 +146,18 @@ const EMOJI = { page: "📄", image: "🖼️", pdf: "📕", video: "🎬", audi
 stashSweep().catch(() => {});
 
 // Right-click the sheep: move files from the computer (what a tab can't hold).
-chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({ id: "move-files", title: "Move files or a folder from your computer…", contexts: ["action"] });
+extension.runtime.onInstalled.addListener(() => {
+  extension.contextMenus.create({ id: "move-files", title: "Move files or a folder from your computer…", contexts: ["action"] });
 });
-chrome.contextMenus.onClicked.addListener((info) => {
-  if (info.menuItemId === "move-files") chrome.tabs.create({ url: chrome.runtime.getURL("move.html") });
+extension.contextMenus.onClicked.addListener((info) => {
+  if (info.menuItemId === "move-files") extension.tabs.create({ url: extension.runtime.getURL("move.html") });
 });
 
-chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+extension.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
     switch (msg && msg.type) {
       case "state": {
-        const { job: stored } = await chrome.storage.session.get("job");
+        const { job: stored } = await extension.storage.session.get("job");
         const all = await moved();
         reply({
           connected: await isConnected(),
@@ -187,7 +188,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       case "seen":
         // The popup showed the outcome: clear the badge and the finished job.
         if (job && ["done", "error"].includes(job.step)) await setJob(null);
-        else if (!job) await chrome.storage.session.remove("job");
+        else if (!job) await extension.storage.session.remove("job");
         badge("");
         reply({ ok: true });
         break;

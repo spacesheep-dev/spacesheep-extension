@@ -2,12 +2,13 @@
 // one space. It builds the space's files here (lib/build.js draws PDFs and lightens
 // big pictures), stashes them, and hands the job to the service worker, which signs
 // in, uploads and opens the result — the same path a tab's move takes.
+import { extension } from "./lib/browser.js";
 import { buildMany, commonFolder } from "./lib/build.js";
 import { stashPut } from "./lib/stash.js";
 import { humanSize, titleFromName } from "./lib/kinds.js";
 
 const $ = (id) => document.getElementById(id);
-const ask = (msg) => chrome.runtime.sendMessage(msg);
+const ask = (msg) => extension.runtime.sendMessage(msg);
 let items = []; // [{ path, name, type, blob }]
 let titleTouched = false;
 
@@ -128,7 +129,7 @@ $("go").addEventListener("click", async () => {
     });
     const jobId = crypto.randomUUID();
     await stashPut(jobId, built.files.map((f) => ({ path: f.path, blob: f.blob, html: !!f.html, optional: !!f.optional })));
-    const tab = await chrome.tabs.getCurrent();
+    const tab = await extension.tabs.getCurrent();
     status("Connecting to spacesheep…");
     const r = await ask({ type: "move", req: {
       jobId, kind: built.kind, title: built.title, sourceUrl: null, remember: false, uuid: null,
@@ -153,7 +154,7 @@ const STEP = {
   publishing: () => "Publishing…",
 };
 
-chrome.runtime.onMessage.addListener((msg) => {
+extension.runtime.onMessage.addListener((msg) => {
   if (!msg || msg.type !== "job" || !msg.job || $("status").hidden) return;
   const job = msg.job;
   if (job.step === "done") {
@@ -172,7 +173,7 @@ chrome.runtime.onMessage.addListener((msg) => {
     const e = job.error || {};
     const plan = e.code === "too_big";
     problem(plan ? "Too big for your plan" : "It didn't move", e.message || "Nothing was published.",
-      plan ? { label: "See plans", act: () => chrome.tabs.create({ url: "https://spacesheep.dev/plans" }) } : { label: "Try again", act: reset });
+      plan ? { label: "See plans", act: () => extension.tabs.create({ url: "https://spacesheep.dev/plans" }) } : { label: "Try again", act: reset });
     ask({ type: "seen" });
   } else {
     status(STEP[job.step] ? STEP[job.step](job) : "Working…");
