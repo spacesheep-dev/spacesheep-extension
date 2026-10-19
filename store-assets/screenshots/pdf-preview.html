@@ -1,0 +1,13 @@
+<!doctype html><html><body><p>Rendering PDF…</p><script type="module">
+globalThis.browser={runtime:{getURL:path=>new URL('/'+path,location.origin).href}};
+const {drawPdf}=await import('/lib/pdf.js');
+const {pdfPage}=await import('/lib/viewers.js');
+const response=await fetch('/dist/store-screenshots/field-guide.pdf');const bytes=new Uint8Array(await response.arrayBuffer());
+const size=bytes.length;
+const result=await drawPdf(bytes);
+const pages=await Promise.all(result.pages.map(async p=>({...p,path:await new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result);f.readAsDataURL(p.blob)})})));
+// pdfPage escapes paths; replace the safe placeholder with a locally rendered data URL.
+let html=pdfPage({title:'The weekend field guide',file:'/dist/store-screenshots/field-guide.pdf',size,pageCount:result.pageCount,pages:pages.map(p=>({...p,path:'demo-page.webp'}))});
+html=html.replace('demo-page.webp',pages[0].path);
+document.open();document.write(html);document.close();
+</script></body></html>
