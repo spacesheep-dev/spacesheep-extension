@@ -20,6 +20,21 @@ test("Firefox package uses an event page, stable OAuth ID and data consent", () 
   assert.throws(() => manifestFor("safari"), /Unknown browser/);
 });
 
+test("Android package declares mobile compatibility without desktop-only permissions", () => {
+  const android = manifestFor("firefox-android");
+  assert.deepEqual(android.browser_specific_settings.gecko_android, { strict_min_version: "142.0" });
+  assert.equal(android.browser_specific_settings.gecko.strict_min_version, "142.0");
+  assert.equal(android.commands, undefined);
+  assert.equal(android.permissions.includes("identity"), false);
+  assert.equal(android.permissions.includes("contextMenus"), false);
+  assert.equal(android.permissions.includes("tabs"), false);
+  assert.ok(android.permissions.includes("webRequestBlocking"));
+  assert.ok(android.permissions.includes("webRequest"));
+  assert.equal(android.host_permissions.length, 2);
+  assert.match(android.host_permissions[1], /^https:\/\/[a-f0-9]{40}\.extensions\.allizom\.org\/\*$/);
+  assert.equal(manifestFor("firefox").browser_specific_settings.gecko_android, undefined);
+});
+
 // Firefox also exposes chrome.*, but the shared code must use browser.* promises.
 const calls = [];
 globalThis.chrome = { runtime: { getURL: () => { throw new Error("Callback API selected"); } } };

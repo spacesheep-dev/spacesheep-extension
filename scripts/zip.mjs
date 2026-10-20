@@ -11,10 +11,10 @@ import { build, root } from "./package.mjs";
 
 const browser = process.argv[2] || "chrome";
 const { directory, manifest: { version } } = build(browser);
-const name = browser === "firefox" ? "spacesheep-firefox" : "spacesheep-extension";
+const name = browser.startsWith("firefox") ? `spacesheep-${browser}` : "spacesheep-extension";
 const out = `dist/${name}-${version}.zip`;
 rmSync(`${root}/${out}`, { force: true });
 execFileSync("zip", ["-X", "-q", "-r", `${root}/${out}`, "."], { cwd: directory, stdio: "inherit" });
-const aliases = browser === "firefox" ? [`${name}.zip`] : [`${name}.zip`, "move-to-spacesheep.zip"];
+const aliases = browser.startsWith("firefox") ? [`${name}.zip`] : [`${name}.zip`, "move-to-spacesheep.zip"];
 for (const alias of aliases) copyFileSync(`${root}/${out}`, `${root}/dist/${alias}`);
 console.log([out, ...aliases.map((alias) => `dist/${alias}`)].join("\n"));

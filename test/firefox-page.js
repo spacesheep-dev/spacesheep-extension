@@ -1,5 +1,5 @@
 // Copied only into the temporary test extension; origin is supplied by firefox.mjs.
-import { extension, isFirefox } from "./lib/browser.js";
+import { extension, isFirefox, isAndroidBuild } from "./lib/browser.js";
 import { readTab, tabProblem } from "./lib/read.js";
 import { buildSingle } from "./lib/build.js";
 import { stashPut } from "./lib/stash.js";
@@ -21,12 +21,16 @@ const frame = async (url) => {
 
 try {
   assert(isFirefox && extension === browser, "Firefox promise API selected");
+  if (isAndroidBuild) {
+    assert(!extension.identity, "Android package cannot use desktop identity");
+    assert(!extension.contextMenus, "Android package cannot use desktop context menus");
+  }
   await extension.storage.local.set({ server: origin });
   assert(!(await ask({ type: "state" })).connected, "Starts disconnected");
   const connected = await ask({ type: "connect" });
   assert(connected.ok, JSON.stringify(connected));
   assert((await ask({ type: "state" })).connected, "OAuth persisted");
-  await report("real identity flow, registration, PKCE and promise messaging");
+  await report(`${isAndroidBuild ? "tab callback interception" : "real identity flow"}, registration, PKCE and promise messaging`);
 
   const tab = await extension.tabs.create({ url: `${origin}/site`, active: false });
   await until(async () => { const t = await extension.tabs.get(tab.id); return t.url === `${origin}/site` && t.status === "complete"; });
@@ -40,6 +44,16 @@ try {
 
   let pop = await frame(`popup.html?tab=${tab.id}`);
   await until(() => pop.contentDocument.querySelector("#go"));
+  if (isAndroidBuild) {
+    for (const width of [320, 360, 412]) {
+      pop.style.width = `${width}px`;
+      const doc = pop.contentDocument;
+      assert(doc.body.classList.contains("android"), "Mobile layout enabled");
+      assert(doc.documentElement.scrollWidth <= doc.documentElement.clientWidth, "Popup fits phone width " + width);
+      assert(doc.querySelector("#go").getBoundingClientRect().height >= 48, "Touch target is at least 48px");
+    }
+    await report("Android popup layout at 320, 360 and 412px");
+  }
   pop.contentDocument.querySelector("#go").click();
   await until(() => pop.contentDocument.querySelector("#open"));
   assert((await extension.storage.local.get("moved")).moved[`${origin}/site`].uuid === "local-space", "Move remembered");
@@ -72,6 +86,12 @@ try {
 
   const mover = await frame("move.html");
   await until(() => mover.contentDocument.querySelector("#who").textContent);
+  if (isAndroidBuild) {
+    mover.style.width = "320px";
+    const doc = mover.contentDocument;
+    assert(doc.documentElement.scrollWidth <= doc.documentElement.clientWidth, "File picker fits phone width");
+    assert(doc.querySelector(".drop-big").textContent === "Choose files from your device", "Phone picker instructions");
+  }
   const dt = new mover.contentWindow.DataTransfer();
   dt.items.add(new File(["# Firefox file\nPicked from disk"], "note.md", { type: "text/markdown" }));
   const input = mover.contentDocument.querySelector("#pick-files"); input.files = dt.files;

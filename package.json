@@ -6,11 +6,16 @@
     "test": "node --test test/*.test.mjs",
     "e2e": "node test/e2e.mjs",
     "e2e:firefox": "node test/firefox.mjs",
+    "e2e:firefox-android": "node test/firefox.mjs firefox-android",
     "build:firefox": "node scripts/build.mjs firefox",
+    "build:firefox-android": "node scripts/build.mjs firefox-android",
     "lint:firefox": "npm run build:firefox && web-ext lint --source-dir dist/firefox",
+    "lint:firefox-android": "npm run build:firefox-android && web-ext lint --source-dir dist/firefox-android",
+    "run:firefox-android": "npm run build:firefox-android && web-ext run --source-dir dist/firefox-android --target firefox-android --firefox-apk org.mozilla.firefox",
     "icons": "node scripts/icons.mjs",
     "zip": "node scripts/zip.mjs",
-    "zip:firefox": "node scripts/zip.mjs firefox"
+    "zip:firefox": "node scripts/zip.mjs firefox",
+    "zip:firefox-android": "node scripts/zip.mjs firefox-android"
   },
   "devDependencies": {
     "@resvg/resvg-wasm": "^2.6.2",

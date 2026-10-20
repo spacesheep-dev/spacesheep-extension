@@ -1,6 +1,7 @@
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 export const root = fileURLToPath(new URL("..", import.meta.url));
 export const files = [
@@ -9,9 +10,9 @@ export const files = [
 ];
 
 export function manifestFor(browser) {
-  if (!["chrome", "firefox"].includes(browser)) throw new Error(`Unknown browser: ${browser}`);
+  if (!["chrome", "firefox", "firefox-android"].includes(browser)) throw new Error(`Unknown browser: ${browser}`);
   const manifest = JSON.parse(readFileSync(path.join(root, "manifest.json"), "utf8"));
-  if (browser === "firefox") {
+  if (browser.startsWith("firefox")) {
     delete manifest.minimum_chrome_version;
     manifest.background = { scripts: ["background.js"], type: "module" };
     // Firefox ESR 140 supports the built-in data consent shown at installation.
@@ -21,6 +22,17 @@ export function manifestFor(browser) {
       data_collection_permissions: { required: ["authenticationInfo", "websiteContent"] },
     } };
     manifest.permissions.push("clipboardWrite");
+    if (browser === "firefox-android") {
+      // Android 142 supports data consent and correct directory-picker paths.
+      manifest.browser_specific_settings.gecko.strict_min_version = "142.0";
+      manifest.browser_specific_settings.gecko_android = { strict_min_version: "142.0" };
+      manifest.permissions = manifest.permissions.filter((p) => !["identity", "contextMenus"].includes(p));
+      manifest.permissions.push("webRequest", "webRequestBlocking");
+      // Only the OAuth callback is intercepted, never ordinary browsing traffic.
+      const hash = createHash("sha1").update(manifest.browser_specific_settings.gecko.id).digest("hex");
+      manifest.host_permissions.push(`https://${hash}.extensions.allizom.org/*`);
+      delete manifest.commands;
+    }
   }
   return manifest;
 }

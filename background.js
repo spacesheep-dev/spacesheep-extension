@@ -1,7 +1,7 @@
 // The background context (Chrome service worker, Firefox event page): signs in, publishes, and opens the result. The popup (or the
 // move page) reads and builds the files and stashes them (lib/stash.js), because the
 // popup closes the moment the sign-in window takes focus — the work has to outlive it.
-import { extension, browserName } from "./lib/browser.js";
+import { extension, browserName, resultTabOptions } from "./lib/browser.js";
 import { signIn, signOut, isConnected, serverOrigin, AuthError } from "./lib/auth.js";
 import { Mcp } from "./lib/mcp.js";
 import { stashGet, stashDrop, stashSweep } from "./lib/stash.js";
@@ -128,7 +128,7 @@ async function move(req) {
     await setJob({ step: "done", url: result.url, visibility: result.visibility || null, unchanged: !!result.unchanged, dropped });
     badge("✓", "#2d8f5e");
     setTimeout(() => badge(""), 4000);
-    await extension.tabs.create({ url: result.url, ...(req.tab ? { index: req.tab.index + 1, openerTabId: req.tab.id, windowId: req.tab.windowId } : {}) });
+    await extension.tabs.create(resultTabOptions(result.url, req.tab));
   } catch (e) {
     const code = e instanceof AuthError ? e.code : e.code || "failed";
     await setJob({ step: "error", error: { code, message: String(e.message || e) } });
@@ -146,12 +146,14 @@ const EMOJI = { page: "📄", image: "🖼️", pdf: "📕", video: "🎬", audi
 stashSweep().catch(() => {});
 
 // Right-click the sheep: move files from the computer (what a tab can't hold).
-extension.runtime.onInstalled.addListener(() => {
-  extension.contextMenus.create({ id: "move-files", title: "Move files or a folder from your computer…", contexts: ["action"] });
-});
-extension.contextMenus.onClicked.addListener((info) => {
-  if (info.menuItemId === "move-files") extension.tabs.create({ url: extension.runtime.getURL("move.html") });
-});
+if (extension.contextMenus) {
+  extension.runtime.onInstalled.addListener(() => {
+    extension.contextMenus.create({ id: "move-files", title: "Move files or a folder from your computer…", contexts: ["action"] });
+  });
+  extension.contextMenus.onClicked.addListener((info) => {
+    if (info.menuItemId === "move-files") extension.tabs.create({ url: extension.runtime.getURL("move.html") });
+  });
+}
 
 extension.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {

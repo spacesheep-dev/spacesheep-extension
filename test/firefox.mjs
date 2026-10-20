@@ -11,6 +11,8 @@ import { build, root } from "../scripts/package.mjs";
 
 fs.mkdirSync(path.join(root, "dist"), { recursive: true });
 const work = fs.mkdtempSync(path.join(root, "dist/firefox-test-"));
+const target = process.argv[2] || "firefox";
+console.log(`Testing ${target} package in desktop Firefox${target === "firefox-android" ? " (not an Android device test)" : ""}.`);
 let finish, fail;
 const result = new Promise((resolve, reject) => { finish = resolve; fail = reject; });
 result.catch(() => {}); // An early browser failure can arrive before run() resolves.
@@ -118,7 +120,7 @@ const server = http.createServer(async (req, res) => {
 });
 await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
-const { manifest } = build("firefox", path.join(work, "extension"));
+const { manifest } = build(target, path.join(work, "extension"));
 const ext = path.join(work, "extension");
 manifest.host_permissions.push("http://127.0.0.1/*"); // Test-only: automated clicks cannot grant activeTab; match patterns omit ports.
 manifest.permissions.push("tabs"); // Test-only access to the PDF viewer's tab URL.

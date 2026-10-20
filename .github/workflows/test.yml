@@ -15,6 +15,7 @@ jobs:
       - run: npm test
       - run: node scripts/zip.mjs && unzip -l dist/spacesheep-extension.zip | tail -1
       - run: node scripts/zip.mjs firefox && unzip -l dist/spacesheep-firefox.zip | tail -1
+      - run: node scripts/zip.mjs firefox-android && unzip -l dist/spacesheep-firefox-android.zip | tail -1
   firefox:
     runs-on: ubuntu-latest
     steps:
@@ -25,5 +26,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint:firefox
+      - run: npm run lint:firefox-android
       - run: npx playwright install --with-deps firefox
       - run: npm run e2e:firefox
+      # Exercises the Android package's tab-based OAuth in desktop Firefox.
+      # Actual Android UI/activeTab/file-picker checks still require a device.
+      - run: npm run e2e:firefox-android

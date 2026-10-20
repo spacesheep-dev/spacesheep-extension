@@ -72,6 +72,75 @@ Firefox's install prompt declares website content and authentication information
 sent to spacesheep. **Copy link** uses Firefox's clipboard-write permission. There
 is no analytics or background browsing collection.
 
+### Firefox for Android (version 142 or later)
+
+Build the Android package separately:
+
+```bash
+npm install
+npm run zip:firefox-android
+```
+
+The output is `dist/spacesheep-firefox-android.zip`. It is **unsigned**: building
+does not publish it to Mozilla Add-ons or make it permanently installable in
+regular Firefox. Submit this package to Mozilla for signing and Android review
+before distributing it. It shares the desktop Firefox add-on ID, so do not
+install both packages in the same browser profile.
+
+To install a Mozilla-signed `.xpi` on Android, save it to your phone, open
+Firefox **Settings → About Firefox**, and tap the Firefox logo five times
+quickly. Return to **Settings → Install Extension from File**, select the
+`.xpi`, and tap **Add**. See [Mozilla's installation instructions](https://extensionworkshop.com/documentation/publish/install-self-distributed/#install-add-on-from-file-on-android).
+Use the signed `.xpi` downloaded from Mozilla, not the unsigned build ZIP.
+
+Once installed, open the page you want to move, then choose **Extensions →
+spacesheep** in Firefox's menu and tap **Move to spacesheep**. The first move
+opens a sign-in tab; approve the connection and the upload continues after that
+tab closes. The result opens in a new tab. **Move files from your device…** opens
+the file picker for photos, PDFs and other files. Download PDFs first if Firefox's
+viewer prevents capture. Spaces remain private until you share them.
+
+This is a Firefox menu action; it does not add SpaceSheep to Android's system
+share sheet or capture pages open in Chrome.
+
+Android has no extension `identity` or `contextMenus` API. Its package replaces
+native OAuth with a dedicated tab and PKCE, intercepting only this add-on's
+exact Mozilla callback address before the callback request is sent. It requests
+`webRequest` / `webRequestBlocking` and access to that single callback host, with
+no `tabs` or all-websites permission. Desktop Firefox retains native OAuth and
+the toolbar context menu. Android also omits unsupported keyboard commands and
+`openerTabId`, and uses a responsive layout with larger touch targets.
+
+To load an unsigned development build temporarily on a phone, install Android
+Platform Tools (`adb`), enable Android USB debugging and Firefox's **Remote
+debugging via USB**, connect the phone, then run:
+
+```bash
+adb devices
+npm run run:firefox-android -- --adb-device DEVICE_SERIAL
+```
+
+The command targets regular Firefox (`org.mozilla.firefox`) and uses its main
+profile. See [Mozilla's Android development guide](https://extensionworkshop.com/documentation/develop/developing-extensions-for-firefox-for-android/).
+
+Before release, verify on an actual Android device:
+
+- Open an ordinary webpage and invoke the extension from Firefox's menu (this
+  checks the real `activeTab` grant, which automated desktop tests cannot grant).
+- Complete first-time sign-in, cancel sign-in and retry, move a page, then move
+  it again to update the same space.
+- Select an image and a downloaded PDF; confirm uploads, PDF rendering, opening
+  the result and **Copy link**. Check folder selection on the device's picker.
+- Close the popup during sign-in/upload and reopen it to check progress. Keep
+  Firefox running during uploads; Android can stop background apps, and interrupted
+  transfers do not automatically resume.
+- Check a narrow screen, rotation, and a failed/offline upload followed by retry.
+
+`npm run e2e:firefox-android` tests the Android package **in desktop Firefox**,
+including the real tab-based OAuth callback, capture, uploads, and phone-width
+layouts. It is not a device/emulator test. Device testing and Mozilla signing
+are still required before treating this package as release-ready.
+
 ## What it reads, and where it goes
 
 - **Only when you click it**, and only the tab you clicked it on (the browser's
@@ -112,7 +181,7 @@ is no analytics or background browsing collection.
 | `lib/plan.js` | What fits the account's plan, from `stage_begin`'s limits. |
 | `background.js` | Signs in if needed, publishes (inline under 1.5 MB, staged uploads above), remembers page → space, opens the result. Runs in Chrome's service worker or Firefox's event page so it outlives the popup. |
 | `lib/browser.js` | Selects the browser's Promise-based extension API and browser name. |
-| `lib/auth.js` | OAuth 2.1 against spacesheep's MCP server: dynamic client registration, PKCE S256, `identity.launchWebAuthFlow`, single-use refresh tokens. Uses each browser's native redirect URL. |
+| `lib/auth.js`, `lib/oauth-tab.js` | OAuth 2.1 against spacesheep's MCP server: dynamic client registration, PKCE S256, native desktop sign-in or an Android sign-in tab, single-use refresh tokens. |
 | `lib/mcp.js` | A small MCP streamable-HTTP client: `stage_begin` and `deploy`, the same tools every other spacesheep client calls. |
 | `scripts/package.mjs` | Builds each browser from the shared runtime files; supplies Firefox's event-page manifest, stable add-on ID and data-consent declarations. |
 
@@ -128,6 +197,9 @@ npm run build:firefox # unpacked extension in dist/firefox/
 npm run lint:firefox  # Mozilla's validator (see known vendor warnings below)
 npx playwright install firefox
 npm run e2e:firefox   # real Firefox with local OAuth/MCP stand-ins; no account needed
+npm run lint:firefox-android # validate the Android manifest and runtime
+npm run e2e:firefox-android  # Android package in desktop Firefox, not a device test
+npm run zip:firefox-android # separate unsigned Android package
 npm run icons         # redraw icons/icon-*.png from the pixel-art SVGs
 node scripts/vendor-pdfjs.mjs   # after bumping pdfjs-dist
 ```
@@ -148,7 +220,8 @@ page capture with authenticated assets, the popup's publish/update flow, bundled
 rendering, the file picker, and a staged upload after all extension views close.
 It uses a temporary profile and a temporary build with localhost access, then removes
 both. `FIREFOX_BINARY` selects another Firefox executable; `HEADED=1` shows the browser.
-The production package only grants host access to `mcp.spacesheep.dev`.
+Desktop production packages only grant host access to `mcp.spacesheep.dev`;
+Android also grants access to this add-on's single OAuth callback host.
 
 On macOS 27, Playwright's bundled Firefox can hang before loading the extension
 because it shares Firefox's protected application-data directory

@@ -1,5 +1,5 @@
 // The popup: say what will move, move it on one press, show how it's going.
-import { extension, browserName } from "./lib/browser.js";
+import { extension, browserName, isAndroidBuild } from "./lib/browser.js";
 import { readTab, ReadError } from "./lib/read.js";
 import { stashPut } from "./lib/stash.js";
 import { KIND_WORD, humanSize } from "./lib/kinds.js";
@@ -7,6 +7,10 @@ import { KIND_WORD, humanSize } from "./lib/kinds.js";
 const view = document.getElementById("view");
 const ask = (msg) => extension.runtime.sendMessage(msg);
 const openMover = () => extension.tabs.create({ url: extension.runtime.getURL("move.html") });
+if (isAndroidBuild) {
+  document.body.classList.add("android");
+  document.getElementById("files").textContent = "Move files from your device…";
+}
 let tab = null;
 let page = null;   // what readTab found
 let state = null;  // the service worker's answer to "state"
@@ -139,15 +143,15 @@ const PLANS = () => extension.tabs.create({ url: "https://spacesheep.dev/plans" 
 
 const PROBLEMS = {
   file_picker: {
-    title: "Pick this file from your computer",
+    title: "Choose this file from your device",
     why: "In Firefox, use the file picker to move local files. Pick the whole folder to include an HTML page's pictures, styles and scripts.",
-    fix: "Move files from your computer",
+    fix: "Choose files",
     act: openMover,
   },
   pdf_viewer: {
-    title: "Pick this PDF from your computer",
+    title: "Choose this PDF from your device",
     why: "Firefox protects its PDF viewer from extensions. Download the PDF, then pick it here to move it to spacesheep.",
-    fix: "Move files from your computer",
+    fix: "Choose files",
     act: openMover,
   },
   file_access: {
@@ -164,20 +168,21 @@ const PROBLEMS = {
   },
   no_page: {
     title: "Nothing to move in this tab",
-    why: `Open a page, a picture or a file in ${browserName} and click the sheep. Or pick files and folders from your computer.`,
-    fix: "Move files from your computer",
+    why: isAndroidBuild ? "Open a webpage, then choose spacesheep from Firefox's Extensions menu. Or choose files from your device."
+      : `Open a page, a picture or a file in ${browserName} and click the sheep. Or pick files and folders from your computer.`,
+    fix: "Choose files",
     act: openMover,
   },
   folder: {
     title: "This tab is a folder",
-    why: "Pick the folder from your computer to move all of it at once.",
-    fix: "Move files from your computer",
+    why: "Choose the folder from your device to move all of it at once.",
+    fix: "Choose files",
     act: openMover,
   },
   no_access: {
     title: `${browserName} didn't let the extension read this tab`,
-    why: "Some pages and PDF viewers are off-limits to extensions. Reload the tab and try again, or download the file and move it from your computer.",
-    fix: "Move files from your computer",
+    why: "Some pages and PDF viewers are off-limits to extensions. Reload the tab and try again, or download the file and choose it here.",
+    fix: "Choose files",
     act: openMover,
   },
   too_big: {
@@ -318,4 +323,4 @@ async function begin(fresh = false) {
   }
 }
 
-begin();
+begin().catch((e) => renderProblem("failed", String(e.message || e), { retry: () => begin(true) }));
