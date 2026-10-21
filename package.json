@@ -5,6 +5,7 @@
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "e2e": "node test/e2e.mjs",
+    "e2e:capture": "node test/capture.mjs",
     "e2e:firefox": "node test/firefox.mjs",
     "e2e:firefox-android": "node test/firefox.mjs firefox-android",
     "build:firefox": "node scripts/build.mjs firefox",

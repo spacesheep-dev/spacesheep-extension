@@ -1,6 +1,7 @@
 // The popup: say what will move, move it on one press, show how it's going.
 import { extension, browserName, isAndroidBuild } from "./lib/browser.js";
-import { readTab, ReadError } from "./lib/read.js";
+import { FREE_CAPTURE, captureNotice } from "./lib/capture-plan.js";
+import { LIMITS, readTab, ReadError } from "./lib/read.js";
 import { stashPut } from "./lib/stash.js";
 import { KIND_WORD, humanSize } from "./lib/kinds.js";
 
@@ -71,7 +72,7 @@ function renderReady() {
   if (page.kind === "page") {
     const extra = page.files.length - 1;
     view.querySelector(".meta").textContent =
-      `${where} · ${humanSize(page.bytes)}${extra ? ` · with ${plural(extra, "file", "files")} ${page.isFile ? "from its folder" : "from the site"}` : ""}`;
+      `${where} · ${humanSize(page.bytes)}${extra ? ` · with ${plural(extra, "file", "files")} ${page.isFile ? "from its folder" : "the page uses"}` : ""}`;
   } else {
     view.querySelector(".meta").textContent = `${where} · ${KIND_WORD[page.kind] || "file"} · ${humanSize(page.size || page.bytes)}`;
   }
@@ -81,8 +82,11 @@ function renderReady() {
   if (page.snapshot) notes.push("Copied as the tab shows it.");
   const { outside, missing, tooBig, overLimit } = page.skipped;
   if (outside) notes.push(`${plural(outside, "file", "files")} outside its folder won't come along.`);
-  if (missing) notes.push(`${plural(missing, "file it loads is", "files it loads are")} missing.`);
-  if (tooBig + overLimit) notes.push(`${plural(tooBig + overLimit, "file was", "files were")} too big to bring.`);
+  if (missing) notes.push(`${plural(missing, "file it loads couldn't", "files it loads couldn't")} be copied.`);
+  if (tooBig) notes.push(`${plural(tooBig, "file was", "files were")} too big to bring.`);
+  if (overLimit && !page.capture) notes.push(`${plural(overLimit, "file exceeded", "files exceeded")} the ${LIMITS.files.toLocaleString()}-asset capture limit.`);
+  if (page.capture) notes.push(captureNotice(page.capture));
+  if (page.capture && !state.connected) notes.push("Free preview. Connect to use your plan’s limit.");
   if (notes.length) {
     const p = view.querySelector(".notes");
     p.textContent = notes.join(" ");
@@ -91,7 +95,7 @@ function renderReady() {
 
   const go = view.querySelector("#go");
   const before = state && state.moved;
-  go.textContent = before ? "Update it on spacesheep" : "Move to spacesheep";
+  go.textContent = page.capture && !state.connected ? "Connect to check your plan" : before ? "Update it on spacesheep" : "Move to spacesheep";
   go.addEventListener("click", () => start(before ? before.uuid : null));
   if (before) {
     const asNew = view.querySelector("#as-new");
@@ -99,6 +103,9 @@ function renderReady() {
     asNew.addEventListener("click", () => start(null));
   }
   if (!(state && state.connected)) view.querySelector(".first").hidden = false;
+  const plans = view.querySelector(".capture-plans");
+  plans.hidden = !page.capture?.omitted;
+  plans.addEventListener("click", PLANS);
   go.focus();
 }
 
@@ -129,6 +136,11 @@ function renderDone(job) {
     n.textContent = `${plural(job.dropped.length, "full-size original was", "full-size originals were")} too big for your plan; the page shows a lighter copy.`;
     n.hidden = false;
   }
+  if (job.capture) {
+    const n = view.querySelector(".notes");
+    n.textContent = [n.hidden ? "" : n.textContent, captureNotice(job.capture)].filter(Boolean).join(" ");
+    n.hidden = false;
+  }
   const open = view.querySelector("#open");
   open.href = job.url;
   view.querySelector("#copy").addEventListener("click", async (e) => {
@@ -142,6 +154,7 @@ function renderDone(job) {
 const PLANS = () => extension.tabs.create({ url: "https://spacesheep.dev/plans" });
 
 const PROBLEMS = {
+  plan_changed: { title: "Your plan changed", why: "Nothing was published. Prepare a fresh copy with your current allowance.", fix: "Try again" },
   file_picker: {
     title: "Choose this file from your device",
     why: "In Firefox, use the file picker to move local files. Pick the whole folder to include an HTML page's pictures, styles and scripts.",
@@ -251,6 +264,12 @@ function renderProblem(code, message, { retry } = {}) {
 // --- Moving -------------------------------------------------------------------
 
 async function start(uuid) {
+  if (page.capture && !state.connected) {
+    renderWorking({ step: "connecting", title: page.title });
+    const result = await ask({ type: "connect", tab: tab.id });
+    if (!result?.ok) renderProblem(result?.error?.code, result?.error?.message, { retry: () => begin(true) });
+    return;
+  }
   renderWorking({ step: "connecting", title: page.title });
   const jobId = crypto.randomUUID();
   await stashPut(jobId, page.files.map((f) => ({ path: f.path, blob: f.blob, html: !!f.html, optional: !!f.optional })));
@@ -259,6 +278,7 @@ async function start(uuid) {
     kind: page.kind,
     title: page.title,
     sourceUrl: page.sourceUrl,
+    capture: page.capture || null,
     uuid: uuid || null,
     tab: { id: tab.id, index: tab.index, windowId: tab.windowId },
   };
@@ -310,10 +330,16 @@ async function begin(fresh = false) {
   view.querySelector(".title").textContent = tab && tab.title ? tab.title : "This tab";
   view.querySelector(".step").textContent = "Reading this tab…";
   try {
+    let policy = FREE_CAPTURE;
+    if (state.connected && /^https?:/.test(tab.url || "")) {
+      const response = await ask({ type: "capture_limits" });
+      if (!response?.ok) throw new Error(response?.error?.message || "Couldn’t check your plan. Try again.");
+      policy = response.policy;
+    }
     page = await readTab(tab, (step, a, b, c) => {
       const el = view.querySelector(".step");
       if (el) el.textContent = readingWords(step, a, b, c);
-    });
+    }, policy);
     // The pick of what to update is per address the page had when it was read.
     if (page.sourceUrl !== tab.url) state = await ask({ type: "state", sourceUrl: page.sourceUrl });
     renderReady();

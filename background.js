@@ -5,6 +5,7 @@ import { extension, browserName, resultTabOptions } from "./lib/browser.js";
 import { signIn, signOut, isConnected, serverOrigin, AuthError } from "./lib/auth.js";
 import { Mcp } from "./lib/mcp.js";
 import { stashGet, stashDrop, stashSweep } from "./lib/stash.js";
+import { capturePolicy } from "./lib/capture-plan.js";
 import { fitToPlan } from "./lib/plan.js";
 
 const INLINE_BYTES = 1.5 * 1024 * 1024; // above this, files go through staged uploads
@@ -94,7 +95,7 @@ async function move(req) {
   const id = crypto.randomUUID();
   const keepAlive = setInterval(() => extension.runtime.getPlatformInfo(), 20_000);
   badge("…", "#5a5ae6");
-  await setJob({ id, step: "connecting", title: req.title, sourceUrl: req.sourceUrl, update: !!req.uuid, error: null, url: null, done: 0, of: 0, dropped: [] });
+  await setJob({ id, step: "connecting", title: req.title, sourceUrl: req.sourceUrl, update: !!req.uuid, error: null, url: null, done: 0, of: 0, dropped: [], capture: req.capture || null });
   try {
     const all = await stashGet(req.jobId);
     if (!all || !all.length) throw new Error("the files to move went missing; try again");
@@ -102,6 +103,13 @@ async function move(req) {
     if (!(await isConnected())) await signIn();
     const mcp = new Mcp();
 
+    if (req.capture) {
+      const current = capturePolicy(await mcp.call("get_capture_limits"));
+      if (current.max_assets !== req.capture.limit || all.length - 1 > current.max_assets) {
+        throw Object.assign(new Error(`Your ${current.plan} plan allows ${current.max_assets} assets per page. Reopen the extension to prepare a copy for this plan.`), { code: "plan_changed" });
+      }
+      await setJob({ capture: req.capture });
+    }
     const total = all.reduce((n, f) => n + f.blob.size, 0);
     let files;
     let dropped = [];
@@ -170,6 +178,10 @@ extension.runtime.onMessage.addListener((msg, sender, reply) => {
         });
         break;
       }
+      case "capture_limits":
+        try { reply({ ok: true, policy: capturePolicy(await new Mcp().call("get_capture_limits")) }); }
+        catch (e) { reply({ ok: false, error: { code: e.code || "failed", message: String(e.message || e) } }); }
+        break;
       case "move":
         if (job && !["done", "error"].includes(job.step)) { reply({ ok: false, busy: true }); break; }
         move(msg.req); // runs on after the popup closes
@@ -178,6 +190,7 @@ extension.runtime.onMessage.addListener((msg, sender, reply) => {
       case "connect":
         try {
           await signIn();
+          if (msg.tab) await extension.tabs.create({ url: extension.runtime.getURL(`popup.html?tab=${Number(msg.tab)}`) });
           reply({ ok: true });
         } catch (e) {
           reply({ ok: false, error: { code: e.code || "failed", message: String(e.message || e) } });

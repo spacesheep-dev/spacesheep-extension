@@ -106,6 +106,9 @@ write(path.join(SITE, "app/index.html"), `<!doctype html><html><head><title>An a
 <script>document.getElementById("app").innerHTML = "<p>" + "Rendered by a script. ".repeat(60) + "</p>";</script>
 <script type="application/json" id="data">{"keep": true}</script></body></html>`);
 
+write(path.join(SITE, "caps/index.html"), `<!doctype html><title>Capture allowance</title><h1>Capture allowance</h1>${Array.from({length: 45}, (_, i) => `<img src="photo.png?v=${i}">`).join("")}`);
+write(path.join(SITE, "caps/photo.png"), fs.readFileSync(path.join(ROOT, "icons/icon-32.png")));
+
 // --- The test build: the extension, allowed to reach localhost and read files -------
 const EXT = path.join(WORK, "ext");
 for (const f of ["manifest.json", "background.js", "popup.html", "popup.css", "popup.js", "move.html", "move.css", "move.js", "lib", "icons", "vendor"]) {
@@ -325,7 +328,7 @@ try {
     const meta = await pop.innerText(".meta");
     ok(/report\.html/.test(meta) && /with 6 files from its folder/.test(meta), `names the file and what comes along (${meta})`);
     const notes = await pop.innerText(".notes");
-    ok(/1 file outside its folder/.test(notes) && /1 file it loads is missing/.test(notes), `says what stays behind (${notes})`);
+    ok(/1 file outside its folder/.test(notes) && /1 file it loads couldn't be copied/.test(notes), `says what stays behind (${notes})`);
     ok(await pop.isVisible(".first"), "says the first move asks to connect");
     ok(/Not connected yet/.test(await pop.innerText("#who")), "footer: not connected");
     const url = await moveAndWait(pop);
@@ -392,10 +395,11 @@ try {
     const page = await ctx.newPage();
     await page.goto(`http://localhost:${SITE_PORT}/docs/index.html`);
     const pop = await openPopup(page);
-    ok(/with 1 file from its folder/.test(await pop.innerText(".meta")), "found the picture");
+    ok(/with 1 file the page uses/.test(await pop.innerText(".meta")), "found the picture");
     await moveAndWait(pop);
     const moved = (await sw.evaluate(() => chrome.storage.local.get("moved"))).moved[page.url()];
-    const got = JSON.stringify(await mcpCall("read_space", { uuid: moved.uuid, path: "big.png" }));
+    const assetPath = `_assets/${crypto.createHash("sha256").update(`http://localhost:${SITE_PORT}/docs/big.png`).digest("hex")}.png`;
+    const got = JSON.stringify(await mcpCall("read_space", { uuid: moved.uuid, path: assetPath }));
     ok(!/not found|no such/i.test(got), "big.png is in the space");
     await pop.close();
   }
@@ -525,6 +529,34 @@ try {
     ok(refresh.size === 0, "revoked the refresh token on the server");
     await pop.close();
   }
+  console.log("a disconnected webpage capture → check plan → review omissions → publish");
+  {
+    const target = await ctx.newPage();
+    await target.goto(`http://localhost:${SITE_PORT}/caps/index.html`);
+    const pop = await openPopup(target);
+    ok(/Connect to check your plan/.test(await pop.innerText("#go")), "asks to connect before publishing the Free preview");
+    ok(/Free preview/.test(await pop.innerText(".notes")), "labels the disconnected preview");
+    await pop.click("#go");
+    let connected;
+    for (let i = 0; i < 200; i++) {
+      connected = ctx.pages().find(p => p !== pop && p.url() === pop.url());
+      if (connected) break;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    if (!connected) throw Error("No capture review after sign-in");
+    await connected.waitForSelector("#go", {timeout:30000});
+    ok(/Free: 40 assets per page/.test(await connected.innerText(".notes")), "uses the signed-in account's allowance");
+    ok(/5 left out/.test(await connected.innerText(".notes")), "explains excess assets before publishing");
+    ok(await connected.locator(".capture-plans").isVisible(), "offers plan comparison");
+    await connected.locator("body").screenshot({path:path.join(SHOTS,"12-free-capture.png")});
+    await moveAndWait(connected);
+    ok(/5 left out/.test(await connected.innerText(".notes")), "keeps the explanation after publishing");
+    const { moved } = await sw.evaluate(() => chrome.storage.local.get("moved"));
+    const html = JSON.stringify(await mcpCall("read_space", {uuid:moved[target.url()].uuid,path:"index.html"}));
+    ok(html.includes("data:image/png;base64,"), "published copy contains PNG placeholders");
+    await connected.close(); await pop.close(); await target.close();
+  }
+
 } catch (e) {
   failures++;
   console.error(e);

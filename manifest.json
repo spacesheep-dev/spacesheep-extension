@@ -33,7 +33,8 @@
     "contextMenus"
   ],
   "host_permissions": [
-    "https://mcp.spacesheep.dev/*"
+    "https://*/*",
+    "http://*/*"
   ],
   "commands": {
     "_execute_action": {
