@@ -120,12 +120,15 @@ try {
   // Failed/oversized/unvisited assets must never silently become hotlinks.
   await extensionPage.evaluate(async () => {
     const { captureWeb } = await import("./lib/capture.js");
+    const { GREY_PNG } = await import("./lib/capture-plan.js");
     const doc = new DOMParser().parseFromString('<img src="https://cdn.example/missing"><img src="https://cdn.example/big"><img src="https://cdn.example/over">', "text/html");
     const result = await captureWeb(doc, "https://site.example/page", async () => [{ error: "HTTP 404" }, { bytes: new Uint8Array(101) }],
       { files: 2, fileBytes: 100, totalBytes: 10000 });
     if (result.skipped.missing !== 1 || result.skipped.tooBig !== 1 || result.skipped.overLimit !== 1) throw Error(JSON.stringify(result.skipped));
     const html = await result.files[0].blob.text();
-    if (html.includes("https://cdn.example") || (html.match(/src="data:,"/g) || []).length !== 2 || !html.includes("data:image/png;base64,")) throw Error(html);
+    const saved = new DOMParser().parseFromString(html, "text/html");
+    const sources = [...saved.images].map(img => img.getAttribute("src"));
+    if (JSON.stringify(sources) !== JSON.stringify(["data:,", "data:,", GREY_PNG])) throw Error(html);
     const integrityDoc = new DOMParser().parseFromString('<link rel="stylesheet" href="https://cdn.example/a.css" integrity="invalid" crossorigin="anonymous">', "text/html");
     const copied = await captureWeb(integrityDoc, "https://site.example/", async () => [{ bytes: new TextEncoder().encode('body{color:red}'), type: "text/css" }],
       { files: 2, fileBytes: 1000, totalBytes: 10000 });
@@ -155,7 +158,13 @@ try {
     const doc = new DOMParser().parseFromString('<picture><source srcset="https://cdn.example/a 1x, https://cdn.example/b 2x"><img src="https://cdn.example/c"></picture><link rel="stylesheet" href="https://cdn.example/style"><video poster="https://cdn.example/poster" src="https://cdn.example/video"></video><style>@import url("https://cdn.example/import");.x{background-image:url("https://cdn.example/bg")}</style>', "text/html");
     const result = await captureWeb(doc, "https://site.example/", async () => { throw Error("Must not fetch omitted assets"); }, { files: 0, fileBytes: 1000, totalBytes: 100000 });
     const html = await result.files[0].blob.text();
-    if (html.includes("https://cdn.example") || !html.includes('href="data:,"') || !html.includes('src="data:,"') || !html.includes('@import url("data:,")')) throw Error(html);
+    const saved = new DOMParser().parseFromString(html, "text/html");
+    if (saved.querySelector("source").getAttribute("srcset") !== `${GREY_PNG} 1x, ${GREY_PNG} 2x`
+      || saved.querySelector("img").getAttribute("src") !== GREY_PNG
+      || saved.querySelector("link").getAttribute("href") !== "data:,"
+      || saved.querySelector("video").getAttribute("src") !== "data:,"
+      || saved.querySelector("video").getAttribute("poster") !== GREY_PNG
+      || saved.querySelector("style").textContent !== `@import url("data:,");.x{background-image:url("${GREY_PNG}")}`) throw Error(html);
   });
   console.log("✓ Free/Pro/Max caps, zero excess downloads, responsive/CSS PNG placeholders and non-image omissions");
 
