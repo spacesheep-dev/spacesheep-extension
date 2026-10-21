@@ -37,10 +37,15 @@ try {
   const captured = await readTab(await extension.tabs.get(tab.id));
   const html = await captured.files[0].blob.text();
   assert(html.includes("Rendered page") && !html.includes("<script>"), "Rendered DOM snapshot");
-  assert(captured.files.some((f) => f.path === "style.css"), "Authenticated stylesheet copied: " + JSON.stringify({ paths: captured.files.map((f) => f.path), skipped: captured.skipped }));
-  assert((await captured.files.find((f) => f.path === "style.css").blob.text()) === "h1 { color: purple; }/*" + "x".repeat(70_000) + "*/", "All byte-conversion chunks preserved");
-  assert(captured.files.some((f) => f.path === "image.png"), "Picture copied");
-  await report("page capture, same-origin cookies, styles and pictures");
+  const saved = new DOMParser().parseFromString(html, "text/html");
+  const stylesheetPath = saved.querySelector('link[rel="stylesheet"]').getAttribute("href").replace(/^\.\//, "");
+  const imagePath = saved.querySelector("img").getAttribute("src").replace(/^\.\//, "");
+  assert(captured.files.some((f) => f.path === stylesheetPath), "Authenticated stylesheet copied: " + JSON.stringify({ paths: captured.files.map((f) => f.path), skipped: captured.skipped }));
+  assert((await captured.files.find((f) => f.path === stylesheetPath).blob.text()) === "h1 { color: purple; }/*" + "x".repeat(70_000) + "*/", "All byte-conversion chunks preserved");
+  assert(captured.files.some((f) => f.path === imagePath), "Picture copied");
+  const cdnPath = saved.querySelector("#cdn").getAttribute("src").replace(/^\.\//, "");
+  assert(cdnPath.startsWith("_assets/") && captured.files.some((f) => f.path === cdnPath), "CDN picture copied without CORS headers");
+  await report("page capture, same-origin cookies, styles, local and CDN pictures");
 
   let pop = await frame(`popup.html?tab=${tab.id}`);
   await until(() => pop.contentDocument.querySelector("#go"));

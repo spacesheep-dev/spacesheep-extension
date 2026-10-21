@@ -106,11 +106,11 @@ const server = http.createServer(async (req, res) => {
     } else if (url.pathname === "/site") {
       res.setHeader("Content-Type", "text/html");
       res.setHeader("Set-Cookie", "fixture=allowed; SameSite=Lax");
-      res.end('<!doctype html><title>Firefox fixture</title><link rel="stylesheet" href="/style.css"><img src="/image.png"><script>document.body.insertAdjacentHTML("beforeend", "<h1>Rendered page</h1>")</script>');
+      res.end(`<!doctype html><title>Firefox fixture</title><link rel="stylesheet" href="/style.css"><img src="/image.png"><img id="cdn" src="http://localhost:${server.address().port}/cdn.png"><script>document.body.insertAdjacentHTML("beforeend", "<h1>Rendered page</h1>")</script>`);
     } else if (url.pathname === "/style.css") {
       assert.match(req.headers.cookie || "", /fixture=allowed/);
       res.setHeader("Content-Type", "text/css"); res.end("h1 { color: purple; }/*" + "x".repeat(70_000) + "*/");
-    } else if (url.pathname === "/image.png") { res.setHeader("Content-Type", "image/png"); res.end(png);
+    } else if (["/image.png", "/cdn.png"].includes(url.pathname)) { res.setHeader("Content-Type", "image/png"); res.end(png);
     } else if (url.pathname === "/report.pdf") { res.setHeader("Content-Type", "application/pdf"); res.end(pdf);
     } else { res.setHeader("Content-Type", "text/html"); res.end("<title>Local space</title>Local space"); }
   } catch (e) {
@@ -122,7 +122,6 @@ await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const { manifest } = build(target, path.join(work, "extension"));
 const ext = path.join(work, "extension");
-manifest.host_permissions.push("http://127.0.0.1/*"); // Test-only: automated clicks cannot grant activeTab; match patterns omit ports.
 manifest.permissions.push("tabs"); // Test-only access to the PDF viewer's tab URL.
 fs.writeFileSync(path.join(ext, "manifest.json"), JSON.stringify(manifest));
 fs.appendFileSync(path.join(ext, "background.js"), '\nextension.runtime.onInstalled.addListener(() => extension.tabs.create({ url: extension.runtime.getURL("test.html") }));\n');
@@ -139,6 +138,8 @@ try {
   assert.ok(revoked);
   assert.equal(deployed.length, 4);
   assert.equal(deployed[0].version_name, "Moved from Firefox");
+  assert.equal(deployed[0].files.filter((f) => f.path.endsWith(".png")).length, 2, "Both source and CDN images reach deploy");
+  assert.ok(deployed[0].files.filter((f) => f.path.endsWith(".png")).every((f) => f.encoding === "base64" && Buffer.from(f.content, "base64").equals(png)), "Deploy includes original image bytes");
   assert.equal(deployed[1].version_name, "Updated from Firefox");
   assert.equal(deployed[1].uuid, "local-space");
   console.log("Firefox integration passed (OAuth, refresh, capture, update, PDF, files, staged upload, disconnect).");

@@ -30,8 +30,8 @@ test("Android package declares mobile compatibility without desktop-only permiss
   assert.equal(android.permissions.includes("tabs"), false);
   assert.ok(android.permissions.includes("webRequestBlocking"));
   assert.ok(android.permissions.includes("webRequest"));
-  assert.equal(android.host_permissions.length, 2);
-  assert.match(android.host_permissions[1], /^https:\/\/[a-f0-9]{40}\.extensions\.allizom\.org\/\*$/);
+  assert.deepEqual(android.host_permissions.slice(0, -1), ["https://*/*", "http://*/*"]);
+  assert.match(android.host_permissions.at(-1), /^https:\/\/[a-f0-9]{40}\.extensions\.allizom\.org\/\*$/);
   assert.equal(manifestFor("firefox").browser_specific_settings.gecko_android, undefined);
 });
 

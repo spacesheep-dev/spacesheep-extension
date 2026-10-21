@@ -11,7 +11,7 @@ move files or a whole folder from your computer.
 
 | What's in the tab | What the space shows |
 |---|---|
-| A page from a website | The page as the tab shows it, with the site's own styles, fonts and images it loads |
+| A page from a website | The rendered page with images, styles, fonts and other assets copied from the site and its CDNs |
 | An HTML file from your computer | The page as written, with the images, styles and scripts it loads from its folder |
 | A picture | The picture, whole; a lighter copy when the original is big, the original as the download |
 | A PDF | Its pages as pictures (Chrome won't show a PDF inside a space's frame), each page's words kept for search, readers and agents, and the PDF as the download |
@@ -106,8 +106,9 @@ share sheet or capture pages open in Chrome.
 Android has no extension `identity` or `contextMenus` API. Its package replaces
 native OAuth with a dedicated tab and PKCE, intercepting only this add-on's
 exact Mozilla callback address before the callback request is sent. It requests
-`webRequest` / `webRequestBlocking` and access to that single callback host, with
-no `tabs` or all-websites permission. Desktop Firefox retains native OAuth and
+`webRequest` / `webRequestBlocking` for that single callback, with
+no `tabs` permission. All packages request HTTP/HTTPS host access to copy CDN assets.
+Desktop Firefox retains native OAuth and
 the toolbar context menu. Android also omits unsupported keyboard commands and
 `openerTabId`, and uses a responsive layout with larger touch targets.
 
@@ -145,13 +146,28 @@ are still required before treating this package as release-ready.
 
 - **Only when you click it**, and only the tab you clicked it on (the browser's
   `activeTab`): the file it shows and, for a page, the files it loads: from a website,
-  the site's own files (its styles, fonts and images); from your computer, only the
-  page's folder and the folders below it, never anything above that folder. Never
+  its images, styles, fonts and other assets, including absolute and CDN URLs;
+  from your computer, only the page's folder and the folders below it, never anything
+  above that folder. Never
   `<a href>` links, never other tabs, history or cookies. From your computer, only
   the files you pick.
 - A page from a website is copied as the tab shows it, with its scripts left out: a
   site's scripts are written for its own server and break on a copy. A local file is
   always copied as written, scripts and all.
+- Web assets are uploaded with the HTML to Cloudflare R2. References in HTML,
+  responsive images, inline styles, stylesheets, SVGs and embedded HTML are rewritten
+  to those copies. CSS imports and their dependencies are followed; redirected
+  stylesheets resolve URLs from their final address. Query-string variants get
+  separate files. Navigation links still lead to their original destinations.
+- HTTP/HTTPS host access lets the extension download CDN files that don't allow
+  cross-origin page requests. Capture still starts only when you open the extension.
+  Same-origin reads use the tab's authenticated context; cookies themselves aren't
+  copied or uploaded. Reloading/updating the extension may require approving the
+  expanded browser permissions.
+- Webpage capture includes up to 40 supporting assets on Free, 150 on Pro, or 500 on Max (HTML and generated placeholders do not count). The extension reads the allowance from the account before capture and checks it again before publishing. Excess images use an embedded grey PNG; other excess assets are omitted, with the plan and omitted count shown before and after publishing. Capture is also bounded to 25 MB per asset and 100 MB total; upload size limits still apply.
+  Unavailable and oversized assets are reported in the popup and replaced
+  by empty references. Skipped assets never silently load from the original site. Temporary
+  `blob:` resources aren't copied. A page with skipped assets will be incomplete.
 - PDFs are drawn into pictures on your computer, by [pdf.js](https://github.com/mozilla/pdf.js)
   inside the extension. Nothing is sent anywhere to do it.
 - **It sends files to spacesheep and nowhere else**: `mcp.spacesheep.dev`, the same
@@ -197,6 +213,7 @@ npm run build:firefox # unpacked extension in dist/firefox/
 npm run lint:firefox  # Mozilla's validator (see known vendor warnings below)
 npx playwright install firefox
 npm run e2e:firefox   # real Firefox with local OAuth/MCP stand-ins; no account needed
+npm run e2e:capture   # real Chromium capture + offline render; no account needed
 npm run lint:firefox-android # validate the Android manifest and runtime
 npm run e2e:firefox-android  # Android package in desktop Firefox, not a device test
 npm run zip:firefox-android # separate unsigned Android package
@@ -220,8 +237,13 @@ page capture with authenticated assets, the popup's publish/update flow, bundled
 rendering, the file picker, and a staged upload after all extension views close.
 It uses a temporary profile and a temporary build with localhost access, then removes
 both. `FIREFOX_BINARY` selects another Firefox executable; `HEADED=1` shows the browser.
-Desktop production packages only grant host access to `mcp.spacesheep.dev`;
-Android also grants access to this add-on's single OAuth callback host.
+All packages grant HTTP/HTTPS host access for asset downloads; Android also
+declares this add-on's single OAuth callback host for callback interception.
+
+The capture integration test uses two local origins, including a CDN without CORS
+headers, and checks authenticated images, redirects, query variants, nested CSS,
+fonts, SVG references, responsive images and embedded documents. It then stops both
+source servers and renders the saved files, checking that no external assets load.
 
 On macOS 27, Playwright's bundled Firefox can hang before loading the extension
 because it shares Firefox's protected application-data directory
@@ -237,7 +259,7 @@ are not validation errors. The app's PDF import is a fixed local path.
 
 Two development hooks, both in the extension's own storage, which only it can read:
 `chrome.storage.local.set({ server: "http://localhost:8963" })` points it at a local
-worker (add that origin to `host_permissions` in a local copy of the manifest), and
+worker, and
 `popup.html?tab=<id>` opens the popup on a given tab.
 
 ## License
