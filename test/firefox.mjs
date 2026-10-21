@@ -89,7 +89,8 @@ const server = http.createServer(async (req, res) => {
       } else {
         const args = rpc.params.arguments;
         let value;
-        if (rpc.params.name === "stage_begin") value = { upload_url: `${origin}/upload`, limits: {}, plan: "test" };
+        if (rpc.params.name === "get_capture_limits") value = { plan: "free", max_assets: 40, limits: {} };
+        else if (rpc.params.name === "stage_begin") value = { upload_url: `${origin}/upload`, limits: {}, plan: "test" };
         else {
           assert.equal(rpc.params.name, "deploy");
           deployed.push(args);

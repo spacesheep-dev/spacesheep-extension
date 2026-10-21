@@ -42,9 +42,11 @@ const { signIn } = await import("../lib/auth.js");
 const { resultTabOptions } = await import("../lib/browser.js");
 const callback = await firefoxRedirectURL();
 const ready = async () => {
-  for (let i = 0; i < 100; i++) {
+  // PKCE uses asynchronous Web Crypto; event-loop turns are not a time budget.
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
     if (navigations.length) return new URL(navigations[0].url);
-    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error("Sign-in tab never navigated");
 };

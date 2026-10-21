@@ -49,6 +49,7 @@ try {
 
   let pop = await frame(`popup.html?tab=${tab.id}`);
   await until(() => pop.contentDocument.querySelector("#go"));
+  assert(pop.contentDocument.querySelector(".notes").textContent.includes("Free: 40 assets per page."), "Popup uses the account capture allowance");
   if (isAndroidBuild) {
     for (const width of [320, 360, 412]) {
       pop.style.width = `${width}px`;
