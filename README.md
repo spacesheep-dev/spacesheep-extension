@@ -152,8 +152,11 @@ are still required before treating this package as release-ready.
   `<a href>` links, never other tabs, history or cookies. From your computer, only
   the files you pick.
 - A page from a website is copied as the tab shows it, with its scripts left out: a
-  site's scripts are written for its own server and break on a copy. A local file is
-  always copied as written, scripts and all.
+  site's scripts are written for its own server and break on a copy. So that what they
+  draw only as you scroll (figures, lazy pictures) is in the copy, the tab scrolls
+  through once and back before it's read, for up to four seconds. Menus, sliders and
+  boxes keep the settings the tab shows; text typed into a field doesn't come along.
+  A local file is always copied as written, scripts and all.
 - Web assets are uploaded with the HTML to Cloudflare R2. References in HTML,
   responsive images, inline styles, stylesheets, SVGs and embedded HTML are rewritten
   to those copies. CSS imports and their dependencies are followed; redirected
@@ -242,8 +245,10 @@ declares this add-on's single OAuth callback host for callback interception.
 
 The capture integration test uses two local origins, including a CDN without CORS
 headers, and checks authenticated images, redirects, query variants, nested CSS,
-fonts, SVG references, responsive images and embedded documents. It then stops both
-source servers and renders the saved files, checking that no external assets load.
+fonts, SVG references, responsive images and embedded documents, plus a figure its
+script draws only once it scrolls into view and the settings its script made. It then
+stops both source servers and renders the saved files, checking that no external
+assets load.
 
 On macOS 27, Playwright's bundled Firefox can hang before loading the extension
 because it shares Firefox's protected application-data directory
