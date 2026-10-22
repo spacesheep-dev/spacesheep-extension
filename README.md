@@ -18,7 +18,7 @@ move files or a whole folder from your computer.
 | A video or a sound | A player |
 | Markdown, CSV, JSON, code, text | Markdown set as a document, CSV as a table, JSON indented, the rest as written |
 | Anything else | Its name and size, and a download button |
-| A folder with an `index.html` | The website, as it is |
+| A folder with an `index.html`, or a page saved with its files (“Save Page As”, `Page.html` and `Page_files/`) | The website, as it is, opening on that page |
 | Many files | A gallery of the pictures and a list of the rest, each with a page of its own |
 
 ## Install

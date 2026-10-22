@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { kindOf, extOf, fileSlot, safeName, titleFromName, humanSize } from "../lib/kinds.js";
 import { imagePage, pdfPage, textPage, filePage, listPage, markdown, parseDelimited, href } from "../lib/viewers.js";
 import { fitToPlan } from "../lib/plan.js";
-import { cleanPath, commonFolder } from "../lib/build.js";
+import { cleanPath, commonFolder, frontPage, renameRefs, buildMany } from "../lib/build.js";
 
 test("kindOf: the type Chrome reports wins, the name is the fallback", () => {
   assert.equal(kindOf("image/png", "x.bin"), "image");
@@ -106,4 +106,43 @@ test("paths from a dropped folder", () => {
   assert.equal(commonFolder(["trip/a.jpg", "trip/sub/b.jpg"]), "trip");
   assert.equal(commonFolder(["a.jpg", "trip/b.jpg"]), "");
   assert.equal(href("view/day 1/a#b.jpg.html"), "view/day%201/a%23b.jpg.html");
+});
+
+test("frontPage: index.html, or the one page a folder obviously opens on", () => {
+  assert.equal(frontPage(["index.html", "a.html"]), "index.html");
+  // A browser's "Save Page As": the page and its files folder.
+  assert.equal(frontPage(["Report.html", "Report_files/app.css", "Report_files/a.png"]), "Report.html");
+  assert.equal(frontPage(["a.html", "Report.html", "Report_files/app.css", "notes.txt"]), "Report.html");
+  // The only file at the top.
+  assert.equal(frontPage(["page.htm", "img/a.png"]), "page.htm");
+  // A page among other files, or several pages: no telling, so a list.
+  assert.equal(frontPage(["notes.html", "a.jpg", "b.jpg"]), null);
+  assert.equal(frontPage(["a.html", "b.html"]), null);
+  assert.equal(frontPage(["sub/index.html", "a.jpg"]), null);
+});
+
+test("renameRefs: references follow a file or folder cleaning renamed", () => {
+  const renames = new Map([["thermal:wk42_files", "thermalwk42_files"]]);
+  assert.equal(renameRefs('<link href="./thermal:wk42_files/app.css"><img src="thermal%3Awk42_files/a.png">', renames),
+    '<link href="./thermalwk42_files/app.css"><img src="thermalwk42_files/a.png">');
+  assert.equal(renameRefs("background: url(thermal:wk42_files/bg.png)", renames), "background: url(thermalwk42_files/bg.png)");
+  // Only whole path segments: a longer name, or words that merely contain it, stay.
+  assert.equal(renameRefs('<p>see xthermal:wk42_files/</p><a href="thermal:wk42_files2/a">', renames), null);
+});
+
+test("buildMany: a saved page and its files folder become a site that opens on the page", async () => {
+  const f = (path, text, type = "") => ({ path, name: path.split("/").pop(), type, blob: new Blob([text], { type }) });
+  const built = await buildMany([
+    f("archive/thermal:wk42.html", '<link rel="stylesheet" href="./thermal:wk42_files/app.css"><img src="./thermal:wk42_files/a.png">', "text/html"),
+    f("archive/thermal:wk42_files/app.css", "body{background:url(a.png)}", "text/css"),
+    f("archive/thermal:wk42_files/a.png", "png", "image/png"),
+    f("archive/thermal:wk42_files/Icon\r", ""),
+    f("archive/.DS_Store", ""),
+  ]);
+  assert.equal(built.kind, "site");
+  assert.equal(built.title, "archive");
+  assert.deepEqual(built.files.map((x) => x.path).sort(), ["index.html", "thermalwk42_files/a.png", "thermalwk42_files/app.css"]);
+  const html = await built.files.find((x) => x.path === "index.html").blob.text();
+  assert.match(html, /href="\.\/thermalwk42_files\/app\.css"/);
+  assert.match(html, /src="\.\/thermalwk42_files\/a\.png"/);
 });
