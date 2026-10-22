@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "spacesheep",
   "short_name": "spacesheep",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Move pages, pictures, PDFs, videos and files to spacesheep in one click. Each gets its own link, private until you share it.",
   "homepage_url": "https://spacesheep.dev",
   "minimum_chrome_version": "116",
