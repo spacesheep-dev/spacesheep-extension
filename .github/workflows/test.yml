@@ -27,7 +27,8 @@ jobs:
       - run: npm ci
       - run: npm run lint:firefox
       - run: npm run lint:firefox-android
-      - run: npx playwright install --with-deps firefox
+      - run: npx playwright install --with-deps chromium firefox
+      - run: npm run e2e:flagsheep
       - run: npm run e2e:firefox
       # Exercises the Android package's tab-based OAuth in desktop Firefox.
       # Actual Android UI/activeTab/file-picker checks still require a device.

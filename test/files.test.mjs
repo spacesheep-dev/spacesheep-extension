@@ -108,6 +108,16 @@ test("paths from a dropped folder", () => {
   assert.equal(href("view/day 1/a#b.jpg.html"), "view/day%201/a%23b.jpg.html");
 });
 
+test("Flagsheep uses server upload limits and its public name in every limit error", () => {
+  const mb = 1024 ** 2;
+  const limits = { max_file_bytes: 100 * mb, max_total_bytes: 2048 * mb, max_files: 12000 };
+  const file = (size) => ({ path: "file.bin", blob: { size } });
+  assert.equal(fitToPlan([file(100 * mb)], limits, "supermax").keep.length, 1);
+  assert.throws(() => fitToPlan([file(100 * mb + 1)], limits, "supermax"), /Flagsheep plan takes files up to 100 MB/);
+  assert.throws(() => fitToPlan(Array.from({ length: 21 }, () => file(100 * mb)), limits, "supermax"), /Flagsheep plan holds up to 2048 MB/);
+  assert.throws(() => fitToPlan(Array.from({ length: 12001 }, () => file(1)), limits, "supermax"), /Flagsheep plan holds up to 12000/);
+});
+
 test("frontPage: index.html, or the one page a folder obviously opens on", () => {
   assert.equal(frontPage(["index.html", "a.html"]), "index.html");
   // A browser's "Save Page As": the page and its files folder.

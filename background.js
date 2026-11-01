@@ -6,7 +6,7 @@ import { signIn, signOut, isConnected, serverOrigin, AuthError } from "./lib/aut
 import { Mcp } from "./lib/mcp.js";
 import { stashGet, stashDrop, stashSweep } from "./lib/stash.js";
 import { capturePolicy } from "./lib/capture-plan.js";
-import { fitToPlan } from "./lib/plan.js";
+import { fitToPlan, planTitle } from "./lib/plan.js";
 
 const INLINE_BYTES = 1.5 * 1024 * 1024; // above this, files go through staged uploads
 const MOVED_KEEP = 300;                  // remembered pages, for "update" instead of a duplicate
@@ -106,7 +106,7 @@ async function move(req) {
     if (req.capture) {
       const current = capturePolicy(await mcp.call("get_capture_limits"));
       if (current.max_assets !== req.capture.limit || all.length - 1 > current.max_assets) {
-        throw Object.assign(new Error(`Your ${current.plan} plan allows ${current.max_assets} assets per page. Reopen the extension to prepare a copy for this plan.`), { code: "plan_changed" });
+        throw Object.assign(new Error(`Your ${planTitle(current.plan)} plan allows ${current.max_assets} assets per page. Reopen the extension to prepare a copy for this plan.`), { code: "plan_changed" });
       }
       await setJob({ capture: req.capture });
     }

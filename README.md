@@ -164,7 +164,7 @@ are still required before treating this package as release-ready.
   Same-origin reads use the tab's authenticated context; cookies themselves aren't
   copied or uploaded. Reloading/updating the extension may require approving the
   expanded browser permissions.
-- Webpage capture includes up to 40 supporting assets on Free, 150 on Pro, or 500 on Max (HTML and generated placeholders do not count). The extension reads the allowance from the account before capture and checks it again before publishing. Excess images use an embedded grey PNG; other excess assets are omitted, with the plan and omitted count shown before and after publishing. Capture is also bounded to 25 MB per asset and 100 MB total; upload size limits still apply.
+- Webpage capture includes up to 40 supporting assets on Free, 150 on Pro, 500 on Max, or 1,500 on Flagsheep (HTML and generated placeholders do not count), in both Chrome and Firefox. The extension reads the allowance from the account before capture and checks it again before publishing. Excess images use an embedded grey PNG; other excess assets are omitted, with the plan and omitted count shown before and after publishing. Capture is also bounded to 25 MB per asset and 100 MB total; upload size limits still apply.
   Unavailable and oversized assets are reported in the popup and replaced
   by empty references. Skipped assets never silently load from the original site. Temporary
   `blob:` resources aren't copied. A page with skipped assets will be incomplete.
@@ -211,9 +211,10 @@ npm run zip           # dist/spacesheep-extension-<version>.zip for the Chrome W
 npm run zip:firefox   # dist/spacesheep-firefox-<version>.zip for Mozilla Add-ons
 npm run build:firefox # unpacked extension in dist/firefox/
 npm run lint:firefox  # Mozilla's validator (see known vendor warnings below)
-npx playwright install firefox
+npx playwright install chromium firefox
 npm run e2e:firefox   # real Firefox with local OAuth/MCP stand-ins; no account needed
 npm run e2e:capture   # real Chromium capture + offline render; no account needed
+npm run e2e:flagsheep # Flagsheep capture/publish/update in Chromium and Firefox; no account needed
 npm run lint:firefox-android # validate the Android manifest and runtime
 npm run e2e:firefox-android  # Android package in desktop Firefox, not a device test
 npm run zip:firefox-android # separate unsigned Android package
@@ -239,6 +240,13 @@ It uses a temporary profile and a temporary build with localhost access, then re
 both. `FIREFOX_BINARY` selects another Firefox executable; `HEADED=1` shows the browser.
 All packages grant HTTP/HTTPS host access for asset downloads; Android also
 declares this add-on's single OAuth callback host for callback interception.
+
+The Flagsheep integration test runs the same workflow in Chromium and Firefox
+against a local MCP stand-in: a 1,501-asset page copies 1,500 assets and replaces
+the excess image, then publishes and updates the same space. It also checks
+Flagsheep labels, plan changes before publishing, and staged file uploads.
+Use `npm run e2e:flagsheep -- chrome` or `-- firefox` to run one browser;
+`FIREFOX_BINARY` selects an installed Firefox executable for this test too.
 
 The capture integration test uses two local origins, including a CDN without CORS
 headers, and checks authenticated images, redirects, query variants, nested CSS,
