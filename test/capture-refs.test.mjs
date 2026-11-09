@@ -22,6 +22,15 @@ test("srcset retains descriptors, data URLs, and comma-containing image URLs", (
   assert.equal(result, "local/1.png, local/2.png 2x, data:image/png;base64,AAAA 3x, local/4.png 400w");
 });
 
+test("srcset drops failed data:, candidates so high-DPI screens fall back to valid candidates or src", () => {
+  const partial = rewriteSrcset("ok-15x.jpg 1.5x, missing-2x.jpg 2x", (url) =>
+    url.startsWith("missing") ? "data:," : "./_assets/ok-15x.jpg"
+  );
+  assert.equal(partial, "./_assets/ok-15x.jpg 1.5x");
+  const allFailed = rewriteSrcset("missing-15x.jpg 1.5x, missing-2x.jpg 2x", () => "data:,");
+  assert.equal(allFailed, "");
+});
+
 test("CSS rewrites imports, escaped URLs and image-set without touching strings/comments", () => {
   const seen = [];
   const css = `/* url(ignore.png) */ @import 'theme.css' layer(theme) screen;
