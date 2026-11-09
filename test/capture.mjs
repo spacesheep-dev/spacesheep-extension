@@ -57,6 +57,33 @@ const site = await listen((req, res) => {
     res.setHeader("Content-Type", "image/png"); return res.end(png);
   }
   if (url.pathname === "/redirect.png") { res.writeHead(302, { Location: `${cdnOrigin}/photo.png?v=redirect` }); return res.end(); }
+  if (url.pathname === "/lazy") {
+    // A figure its script draws only once it scrolls into view, and controls the
+    // script set: what an interactive report does.
+    res.setHeader("Content-Type", "text/html");
+    return res.end(`<!doctype html><html><head><title>Drawn on view</title></head><body style="margin:0">
+<select id="wire"><option>M4</option><option>M8</option></select><input id="supply" type="range" min="0" max="10" value="2">
+<input id="raw" type="checkbox" checked><input id="len" type="number" value="1"><input id="who" value="">
+<input id="secret" type="password"><textarea id="note">as written</textarea>
+<div style="height:3000px"></div><svg id="figure" width="200" height="100"></svg>
+<script>
+document.getElementById("wire").options[1].selected = true;
+document.getElementById("supply").value = "7";
+document.getElementById("raw").checked = false;
+document.getElementById("len").value = "2.65";
+document.getElementById("who").value = "typed";
+document.getElementById("secret").value = "hunter2";
+document.getElementById("note").value = "edited";
+const figure = document.getElementById("figure");
+new IntersectionObserver((entries, io) => {
+  if (!entries.some((e) => e.isIntersecting)) return;
+  io.disconnect();
+  const bar = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  bar.setAttribute("id", "drawn"); bar.setAttribute("width", "200"); bar.setAttribute("height", "100");
+  figure.append(bar);
+}).observe(figure);
+</script></body></html>`);
+  }
   if (url.pathname !== "/site") { res.writeHead(404); return res.end(); }
   res.setHeader("Set-Cookie", "capture=yes; Path=/; SameSite=Lax");
   res.setHeader("Content-Type", "text/html");
@@ -167,6 +194,32 @@ try {
       || saved.querySelector("style").textContent !== `@import url("data:,");.x{background-image:url("${GREY_PNG}")}`) throw Error(html);
   });
   console.log("✓ Free/Pro/Max caps, zero excess downloads, responsive/CSS PNG placeholders and non-image omissions");
+
+  // The popup reads the tab in front, so its scripts can still draw what's below the fold.
+  const lazy = await context.newPage();
+  await lazy.goto(`${siteOrigin}/lazy`);
+  await lazy.evaluate(() => window.scrollTo(0, 40));
+  await lazy.bringToFront();
+  assert.equal(await lazy.locator("#drawn").count(), 0, "The figure waits until it is in view");
+  const lazyHtml = await extensionPage.evaluate(async (sourceUrl) => {
+    const { readTab } = await import("./lib/read.js");
+    const tabs = await chrome.tabs.query({});
+    const result = await readTab(tabs.find((t) => t.url === sourceUrl));
+    return result.files[0].blob.text();
+  }, `${siteOrigin}/lazy`);
+  assert.equal(await lazy.evaluate(() => window.scrollY), 40, "The tab is scrolled back where it was");
+  await lazy.close();
+  assert.ok(!lazyHtml.includes("<script") && !/typed|hunter2|edited/.test(lazyHtml), "No scripts, no typed text");
+  const frozen = await context.newPage();
+  await frozen.setContent(lazyHtml);
+  assert.equal(await frozen.locator("svg #drawn").count(), 1, "The figure drawn on view is in the copy");
+  assert.deepEqual(await frozen.evaluate(() => [
+    document.getElementById("wire").selectedIndex, document.getElementById("supply").value,
+    document.getElementById("raw").checked, document.getElementById("len").value,
+    document.getElementById("who").value, document.getElementById("secret").value, document.getElementById("note").value,
+  ]), [1, "7", false, "2.65", "", "", "as written"], "Settings are kept, typed text isn't");
+  await frozen.close();
+  console.log("✓ A figure drawn only on view, and settings a script made, are copied as the tab shows them; typed text isn't");
 
   await source.close();
   await close(site); await close(cdn);
