@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { assetUrl, urlKey, rewriteCss, rewriteSrcset } from "../lib/capture-refs.js";
+import { assetUrl, urlKey, rewriteCss, rewriteSrcset, prepareDocument, rewriteDocument } from "../lib/capture-refs.js";
 import { fetchAsset } from "../lib/capture.js";
 
 const base = "https://source.example/docs/page";
@@ -50,3 +50,63 @@ test("asset fetch reports HTTP errors", async (t) => {
   t.mock.method(globalThis, "fetch", async () => new Response("no", { status: 404 }));
   assert.equal((await fetchAsset("https://cdn.example/missing", 15)).error, "HTTP 404");
 });
+
+test("prepareDocument preserves preload stylesheet links and converts SVG object embeds to img", () => {
+  const makeEl = (tagName, attrs = {}, textContent = "") => {
+    const map = new Map(Object.entries(attrs));
+    const el = {
+      tagName: tagName.toUpperCase(),
+      textContent,
+      removed: false,
+      replacedWith: null,
+      getAttribute: (k) => (map.has(k) ? map.get(k) : null),
+      setAttribute: (k, v) => map.set(k, String(v)),
+      removeAttribute: (k) => map.delete(k),
+      hasAttribute: (k) => map.has(k),
+      remove() { this.removed = true; },
+      replaceWith(replacement) { this.replacedWith = replacement; },
+    };
+    return el;
+  };
+  const preloadSheet = makeEl("link", { rel: "preload stylesheet", as: "style", href: "/assets/main.css" });
+  const dupPreload = makeEl("link", { rel: "preload", as: "style", href: "/assets/base.css" });
+  const baseSheet = makeEl("link", { rel: "stylesheet", href: "/assets/base.css" });
+  const svgObject = makeEl("object", { type: "image/svg+xml", data: "figures/fig7.svg", class: "ltx_graphics" }, "Figure 7");
+  const assistiveMml = makeEl("span", { class: "MJX_Assistive_MathML" });
+  const mathScript = makeEl("script", { src: "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" });
+  const appendedHead = [];
+
+  const doc = {
+    head: {
+      prepend: (n) => appendedHead.unshift(n),
+      appendChild: (n) => appendedHead.push(n),
+    },
+    createElement: (tag) => makeEl(tag),
+    querySelector: (sel) => {
+      if (sel === ".MathJax, mjx-container, .katex") return {};
+      return null;
+    },
+    querySelectorAll: (sel) => {
+      if (sel === "script") return [mathScript];
+      if (sel.includes(".MJX_Assistive_MathML")) return [assistiveMml];
+      if (sel === 'link[rel~="stylesheet" i][href]:not([rel~="preload" i])') return [baseSheet];
+      if (sel === 'link[rel~="preload" i][as="style" i]') return [preloadSheet, dupPreload];
+      if (sel === "object[data], embed[src]") return [svgObject];
+      return [];
+    },
+  };
+
+  prepareDocument(doc, "https://example.com/paper/index.html");
+  assert.equal(preloadSheet.removed, false);
+  assert.equal(preloadSheet.getAttribute("rel"), "stylesheet");
+  assert.equal(preloadSheet.getAttribute("as"), null);
+  assert.equal(dupPreload.removed, true);
+  assert.equal(assistiveMml.removed, true);
+  assert.ok(svgObject.replacedWith);
+  assert.equal(svgObject.replacedWith.tagName, "IMG");
+  assert.equal(svgObject.replacedWith.getAttribute("src"), "figures/fig7.svg");
+  assert.equal(svgObject.replacedWith.getAttribute("class"), "ltx_graphics");
+  assert.equal(svgObject.replacedWith.getAttribute("alt"), "Figure 7");
+  assert.ok(appendedHead.some((m) => m.getAttribute("name") === "spacesheep:math" && m.getAttribute("content") === "tex"));
+});
+
