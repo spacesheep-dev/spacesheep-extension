@@ -1,10 +1,12 @@
 const root=document.querySelector('#art');
 const n=new URLSearchParams(location.search).get('n')||'1';
+const chrome=new URLSearchParams(location.search).get('browser')==='chrome';
+if(chrome) document.documentElement.classList.add('chrome-store');
 const logo='/icons/icon-128.png';
 const bar=(label)=>`<div class="bar"><i class="dot"></i><i class="dot"></i><i class="dot"></i><span class="address">${label}</span><img class="tinylogo" src="${logo}"></div>`;
 const mountain=`<svg viewBox="0 0 1600 500" width="100%" height="100%" preserveAspectRatio="xMidYMid slice"><rect width="1600" height="500" fill="#d9e6de"/><circle cx="1150" cy="105" r="64" fill="#f6da8e"/><path d="M0 350L220 140 370 310 640 75 950 380 1230 150 1600 350V500H0" fill="#8ea99b"/><path d="M0 420L430 220 710 430 1010 270 1600 420V500H0" fill="#517965"/><path d="M0 500L370 380 780 490 1240 350 1600 470V500" fill="#244c40"/></svg>`;
 const titles={1:['Keep the page.<br><em>Keep the good stuff.</em>','Save a web page with its styles and images.'],2:['Your PDF.<br><em>A link worth opening.</em>','Turn a document into readable pages, with the original included.'],3:['Your folder.<br><em>Now a website.</em>','Move an HTML folder, with its styles and images together.']};
-root.innerHTML=`<div class="brand"><img src="${logo}">spacesheep</div><div class="edition">FOR FIREFOX &nbsp; / &nbsp; 0${n}</div><h1 class="headline">${titles[n][0]}</h1><p class="sub">${titles[n][1]}</p><section class="stage ${n==='2'?'pdfcase':''}"></section><footer class="bottom"><span>From your browser to your own space.</span><span>Demo content · spacesheep.dev</span></footer>`;
+root.innerHTML=`<div class="brand"><img src="${logo}">spacesheep</div><div class="edition">FOR ${chrome?'CHROME':'FIREFOX'} &nbsp; / &nbsp; 0${n}</div><h1 class="headline">${titles[n][0]}</h1><p class="sub">${titles[n][1]}</p><section class="stage ${n==='2'?'pdfcase':''}"></section><footer class="bottom"><span>From your browser to your own space.</span><span>Demo content · spacesheep.dev</span></footer>`;
 // The headline is two lines; move the demonstration below it.
 document.querySelector('.stage').style.top='580px';
 document.querySelector('.stage').style.height='1066px';
@@ -21,3 +23,4 @@ stage.innerHTML=`<div class="window picker">${bar('Choose your PDF')}<iframe id=
 stage.innerHTML=`<div class="window picker">${bar('Choose your folder')}<iframe id="picker"></iframe></div><div class="arrow">→</div><div class="window result">${bar('Website · local preview')}<div class="portfolio"><nav><span class="moss">moss / studio</span><span>Work &nbsp;&nbsp; About &nbsp;&nbsp; Contact</span></nav><h2>Good things<br>grow here.</h2><p>Independent design for people building a more thoughtful world.</p><div class="work"><span>01 / BRAND & DIGITAL</span><div class="orb"></div><strong>A fresh perspective.</strong></div></div></div>`;await picker(false);
 }
 document.body.dataset.ready='true';
+if(chrome && n==='2') document.querySelector('.pdfnote').textContent='Choose a PDF from your computer. Share readable pages and the original in one link.';

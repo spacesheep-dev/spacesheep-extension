@@ -11,3 +11,10 @@ These are promotional compositions with fictional demo content, not screenshots 
 Regenerate the sample PDF with `python3 store-assets/screenshots/demo_pdf.py` (requires reportlab). Run `node store-assets/screenshots/serve.mjs` from the repository, then open `http://127.0.0.1:4178/store-assets/screenshots/index.html?n=1` (or `n=2`, `n=3`). Capture each entire fixed-size page as JPEG. Wait for the PDF preview to finish rendering before capturing image 2.
 
 The layout is deliberately fixed at the listing export size. Production extension files are unchanged.
+
+## Chrome Web Store
+
+Add `&browser=chrome` to each URL for the Chrome variant. It retains the artwork,
+uses Chrome labels and PDF instructions, and renders a 1280 × 800 canvas. Set the
+browser viewport to 1280 × 800 and capture the full page after the preview renders.
+Exports are in `dist/chrome-store-screenshots/` with the same three filenames.
